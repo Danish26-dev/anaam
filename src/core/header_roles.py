@@ -23,23 +23,39 @@ _DECLARED_DATE_FORMAT_RE = re.compile(
     r"\(\s*(MM|DD)\s*[/.-]\s*(DD|MM)\s*[/.-]\s*YYYY\s*\)", re.IGNORECASE
 )
 
-AGE_HEADERS = {"age", "age (yrs)", "age yrs", "patient age", "age in years"}
+AGE_HEADERS = {
+    "age", "age (yrs)", "age yrs", "patient age", "age in years",
+    # Hindi/Hinglish synonyms, mirrored from detection.field_classifier's AGE rule --
+    # that module classifies by sample values too, but this table is the fallback used
+    # wherever header name alone must decide (e.g. main.py's CSV generalization column
+    # lookup), so it needs the same synonyms or a renamed column silently falls through
+    # to free-text handling instead of age-banding/date-shifting.
+    "umar", "umr", "aayu", "आयु", "उम्र",
+}
 
 VILLAGE_HEADERS = {
     "village/mohalla", "village", "mohalla", "gram", "gram/mohalla",
     "gram panchayat", "gaon", "village name",
+    "ग्राम", "गाँव", "गांव", "basti", "mauza",
 }
 
-TEHSIL_HEADERS = {"tehsil", "taluka", "block"}
+TEHSIL_HEADERS = {"tehsil", "taluka", "block", "tahsil", "mandal", "तहसील"}
 
-DISTRICT_HEADERS = {"district", "zila"}
+DISTRICT_HEADERS = {"district", "zila", "jila", "distt", "dist", "janpad", "जिला", "ज़िला"}
 
-PIN_HEADERS = {"pin", "pincode", "pin code", "postal code", "zip", "zip code"}
+PIN_HEADERS = {
+    "pin", "pincode", "pin code", "postal code", "zip", "zip code", "पिन", "पिन कोड",
+}
 
 DATE_HEADERS = {
     "reg date", "registered", "dob", "date of birth", "admission date",
     "discharge date", "visit date", "collected on", "reported on", "report date",
     "bill date", "claim date",
+    # "d o b" / "birth date" / "birth" mirrored from field_classifier's DOB rule; "janm
+    # tithi" is the Hindi header actually seen in practice data (dev/input/registration
+    # /jeevanjyoti_patients.tsv) -- without this, that column's DOB values were neither
+    # shifted nor redacted, passing straight through as a real content leak.
+    "d o b", "birth date", "birthdate", "birth", "janm tithi", "janm", "जन्म तिथि", "जन्म",
 }
 
 # Ordered from strongest reference/identifier columns to name-like identity locations;
