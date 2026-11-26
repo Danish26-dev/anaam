@@ -33,7 +33,8 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 | Commit | What | Verified |
 |---|---|---|
 | `eace4a7` | merge `origin/main` into the engine branch; 5 add/add conflicts resolved (see commit message) | pytest 393 passed; `unittest discover -s tests` OK with and without pytest; `main.py` exit 0; CONTRACT OK |
-| next | docs: integration guide and corrected status | same |
+| `35b9f1f` | fix(audit): exempt documented example secrets from the secret rule | 393 passed; audit blocked=0 |
+| `039333d` | docs: integration guide and corrected status | same |
 
 `main` was then fast-forwarded to the engine branch and pushed normally.
 
