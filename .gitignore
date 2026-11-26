@@ -1,0 +1,42 @@
+# --- local environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- generated outputs and local datasets (may contain practice data derivatives)
+out/
+my_output*/
+output/
+sanitized/
+*.egg-info/
+
+# --- organiser data and answers must never be published
+/Secret-Wards-ToolKit/
+dev/
+**/truth.json
+**/registry.csv
+**/known_facts.jsonl
+**/raw_attack.json
+**/dataset_manifest.json
+
+# --- secrets and private material
+.env
+.env.*
+*.pem
+*.key
+secrets/
+RAKSHA_SECRET*
+
+# --- editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.tmp
