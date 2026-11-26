@@ -71,13 +71,33 @@ generic findings 128 (single common first names and generic address words). The 
 gazetteer has 447 entries, of which 76 (17%) appear in the practice data; it is used only to
 profile column values, not to decide redaction.
 
-## 5. Official submission check
+## 5. The submission entry point today (`main.py` with the regex stub)
 
-`check_submission.py --repo .`: quick mode prints READY TO SUBMIT (files only).
-`check_submission.py --repo . --run`: **fails**, exit code 2, `main.py` does not exist.
-It also confirms the secret was never written and the input was left unchanged.
+After the merge, `main.py` (Omkar's pipeline) still calls the detection stub, not the engine. On the
+practice data with `RAKSHA_SECRET=practice`:
 
-## 6. Test history
+| Measure | `main.py` today |
+|---|---|
+| exit code, files | 0; 200 accounted for, 193 sanitized, 7 quarantined, 817 records |
+| contract | `validate_output.py`: CONTRACT OK |
+| personal data still visible (official `check_dev.py`) | 2387 of 3230 (73.9%); latin 72.0%, Devanagari 93.7%, Hinglish 100% |
+| by hiding place | content 74.5%, filename 0.0%, base64 / metadata / key / header 100% |
+| planted canaries leaked | 4 of 4 |
+| medical values kept | 4855 of 4855 |
+| patient linking | precision 0, recall 0 (the stub returns no identity evidence) |
+| raw copies | 0 |
 
-317 tests pass. Each commit was also checked out in an isolated worktree and its own tests run:
+The gap between this table and section 2 is the value of wiring the engine in (`docs/INTERFACE_NOTES.md`).
+
+## 6. Official submission check
+
+`check_submission.py --repo . --run` could **not** be confirmed on this machine. The checker quotes
+paths with POSIX single quotes (`shlex.quote`); Windows `cmd` keeps the quotes and splits the workspace
+path at its space (`LOCAL STORAGE`), so `main.py` reports "unrecognized arguments" and exits 2. Running
+`main.py` directly works (section 5). The same run confirmed that the secret was never written and
+the input was left unchanged. A Linux or WSL run is needed for the official result.
+
+## 7. Test history
+
+393 tests pass after the merge (76 pipeline, 317 engine). Each engine commit was also checked out in an isolated worktree and its own tests run:
 23, 57, 143, 286, 294, 317 and 317 tests passed at the commits that contain tests (see `PROGRESS.md`).
