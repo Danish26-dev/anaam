@@ -98,6 +98,63 @@ def load_releases() -> None:
             STATE["releases"][d.name] = s
 
 
+# ----------------------------------------------------------------------------- inspection
+_DEVA = re.compile(r"[\u0900-\u097F]")
+_LATIN = re.compile(r"[A-Za-z]")
+# common Hinglish function words; a deterministic signal, not a language model
+_HINGLISH = re.compile(r"\b(?:ka|ki|ke|hai|hain|kiya|diya|gaya|ko|mein|nahi|aur|sahab|ji)\b", re.IGNORECASE)
+_PLACEHOLDER = re.compile(r"\[([A-Z][A-Z-]{1,24})\]")
+_PSN = re.compile(r"PSN-[0-9A-HJKMNP-TV-Z]{8,}")
+
+
+def inspect_bytes(name: str, raw: bytes) -> dict:
+    """Non-destructive preflight inspection with the pipeline's own ingest functions.
+    Returns labels and counts only, never content."""
+    from ingest.csv_adapter import sniff_delimiter
+    from ingest.encoding import decode
+    from ingest.sniff import detect_format
+
+    ext = PurePosixPath(name).suffix.lower()
+    res: dict = {"extension": ext or None, "bytes": len(raw), "issues": []}
+    if not raw.strip():
+        res.update(format="empty", encoding=None)
+        res["issues"].append("empty_file")
+        return res
+    if ext not in SUPPORTED:
+        res["issues"].append("unsupported_extension")
+    text, enc = decode(raw)
+    res["encoding"] = enc
+    if text is None:
+        res["format"] = "undecodable"
+        res["issues"].append("undecodable_text")
+        return res
+    if enc not in ("utf-8", "utf-8-sig"):
+        res["issues"].append("legacy_encoding")
+    fmt = detect_format(text, ext)
+    res["format"] = fmt
+    if fmt in ("unsupported", "undecodable_as_text"):
+        res["issues"].append("unrecognised_structure")
+    if fmt in ("csv", "tsv"):
+        delim = "\t" if fmt == "tsv" else sniff_delimiter(text[:2048], ",")
+        res["delimiter"] = {"\t": "tab", ",": "comma", ";": "semicolon", "|": "pipe"}.get(delim, "other")
+        try:
+            rows = list(csv.reader(io.StringIO(text, newline=""), delimiter=delim))
+            res["rows"] = max(0, len(rows) - 1)
+            res["columns"] = len(rows[0]) if rows else 0
+            if any(len(r) != len(rows[0]) for r in rows[1:] if r):
+                res["issues"].append("ragged_rows")
+        except csv.Error:
+            res["issues"].append("malformed_rows")
+    if ext == ".json" and fmt == "text":
+        res["issues"].append("malformed_json")
+    deva, latin = len(_DEVA.findall(text)), len(_LATIN.findall(text))
+    res["scripts"] = {"devanagari": deva, "latin": latin}
+    res["hinglish_signals"] = len(_HINGLISH.findall(text)) if latin else 0
+    res["script"] = ("mixed" if deva and latin and min(deva, latin) / max(deva, latin) > 0.02
+                     else "devanagari" if deva > latin else "latin" if latin else "none")
+    return res
+
+
 # ----------------------------------------------------------------------------- release run
 def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
     """Checks computed on the released files (and the inputs, before they are deleted)."""
@@ -125,11 +182,23 @@ def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
     leaks = LeakVerifier(DetectionEngine(), pseudonyms)
     leaks.refresh()
     residual, structural, files = Counter(), Counter(), []
+    placeholders, protected_counts = Counter(), Counter()
+    path_engine = DetectionEngine()
     clin_before, clin_kept = Counter(), Counter()
     for f in report.get("files", []):
         entry = {"output": f.get("output"), "status": f["status"], "reason": f.get("reason"),
                  "input_sha256": f["input_sha256"], "records": 0, "residual": 0, "structure": [],
                  "clinical_before": 0, "clinical_kept": 0}
+        src_path = by_sha.get(f["input_sha256"])
+        if src_path is not None:
+            entry["inspection"] = inspect_bytes(src_path.name, src_path.read_bytes())
+            parts = src_path.relative_to(inp).parts
+            folder = parts[0] if len(parts) > 1 else None
+            # a source folder is shown only if the engine finds no PII in it (folder names can hold PII)
+            entry["source"] = folder if folder and path_engine.sanitize_path(folder) == folder else None
+            # path renamed: compared here, only the fact is returned (names may hold PII)
+            entry["path_renamed"] = bool(f.get("output")) and \
+                str(f["output"]).replace("sanitized/", "", 1) != src_path.relative_to(inp).as_posix()
         if f["status"] == "sanitized" and f.get("output"):
             entry["records"] = sum(1 for r in records if r["file"] == f["output"])
             text = (out / f["output"]).read_text(encoding="utf-8", errors="replace")
@@ -155,6 +224,9 @@ def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
                     codes += st.check_fhir_references(parsed)
             entry["structure"] = sorted(set(codes))
             structural.update(entry["structure"])
+            placeholders.update(_PLACEHOLDER.findall(text))
+            protected_counts["pseudonym_occurrences"] += len(_PSN.findall(text))
+            protected_counts["keys_renamed"] += text.count('"redacted_')
             src = by_sha.get(f["input_sha256"])
             if src is not None:
                 b, a = protected_multiset(src.read_text(encoding="utf-8", errors="replace")), protected_multiset(text)
@@ -178,7 +250,17 @@ def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
     res["identity"] = {"records": len(records), "linked_records": sum(len(v) for v in clusters.values()),
                        "patients": len(clusters),
                        "clusters": [{"pseudonym": p, "records": v} for p, v in
-                                    sorted(clusters.items(), key=lambda kv: (-len(kv[1]), kv[0]))][:200]}
+                                    sorted(clusters.items(), key=lambda kv: (-len(kv[1]), kv[0]))][:200],
+                       # records released with patient: null (the engine abstained)
+                       "unlinked": [{"file": r["file"], "loc": r["loc"]} for r in records if not r.get("patient")][:500],
+                       "unlinked_total": sum(1 for r in records if not r.get("patient"))}
+    res["protection"] = {
+        "placeholders": dict(placeholders),
+        "pseudonym_occurrences": protected_counts["pseudonym_occurrences"],
+        "keys_renamed": protected_counts["keys_renamed"],
+        "paths_renamed": sum(1 for x in files if x.get("path_renamed")),
+        "records_generalized": report.get("counts", {}).get("records_generalized", 0),
+    }
     res["counts"], res["timing"], res["resources"] = report.get("counts", {}), report.get("timing", {}), report.get("resources", {})
 
     # release-wide: every input accounted for, report/manifest consistent with the exported tree,
@@ -227,6 +309,27 @@ def run_release(rid: str) -> None:
     finally:
         shutil.rmtree(inp, ignore_errors=True)        # raw uploads never persist
         save_summary(rid, summary)
+
+
+def inspect_upload(files) -> tuple[int, dict]:
+    """Preflight: inspect uploaded files in memory. Nothing is written to disk; the response
+    is keyed by the client's own path and carries labels and counts only."""
+    if not isinstance(files, list) or not files or len(files) > MAX_FILES:
+        return 400, {"error": "no_files" if not files else "too_many_files"}
+    out, total = {}, 0
+    for f in files:
+        rel = safe_rel(str(f.get("path", ""))) if isinstance(f, dict) else None
+        if rel is None:
+            return 400, {"error": "unsafe_path"}
+        try:
+            data = base64.b64decode(str(f.get("data", "")), validate=True)
+        except (binascii.Error, ValueError):
+            return 400, {"error": "bad_encoding"}
+        total += len(data)
+        if total > MAX_BYTES:
+            return 413, {"error": "too_large"}
+        out[rel.as_posix()] = inspect_bytes(rel.name, data)
+    return 200, {"files": out}
 
 
 def create_release(files: list[dict]) -> tuple[int, dict]:
@@ -351,7 +454,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         if not self._host_ok():
             return self._json(403, {"error": "host_not_allowed"})
-        if urlparse(self.path).path != "/api/releases":
+        route = urlparse(self.path).path
+        if route not in ("/api/releases", "/api/inspect"):
             return self._json(404, {"error": "not_found"})
         if (self.headers.get("Content-Type") or "").split(";")[0] != "application/json":
             return self._json(415, {"error": "json_required"})
@@ -362,7 +466,10 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
         except (ValueError, UnicodeDecodeError):
             return self._json(400, {"error": "bad_json"})
-        code, obj = create_release(body.get("files") if isinstance(body, dict) else None)
+        files = body.get("files") if isinstance(body, dict) else None
+        if route == "/api/inspect":
+            return self._json(*inspect_upload(files))
+        code, obj = create_release(files)
         return self._json(code, obj)
 
 

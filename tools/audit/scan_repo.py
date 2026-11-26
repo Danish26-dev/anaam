@@ -127,10 +127,11 @@ def main() -> int:
             continue
         if rel in RENDERED_BINARIES and (ROOT / RENDERED_BINARIES[rel]).is_file():
             continue  # rendered from a text source that this scan checks
-        if len(raw) > 2_000_000 or b"\x00" in raw[:4096]:
+        utf16 = raw[:2] in (b"\xff\xfe", b"\xfe\xff")  # BOM-marked UTF-16 text (legacy exports) is scanned, not skipped
+        if len(raw) > 2_000_000 or (b"\x00" in raw[:4096] and not utf16):
             findings[rel]["BLOCK:binary-or-large"] += 1
             continue
-        text = raw.decode("utf-8", errors="replace")
+        text = raw.decode("utf-16" if utf16 else "utf-8", errors="replace")
         for rx, label in SECRET_PATTERNS:
             if rx.search(text):
                 findings[rel][f"BLOCK:{label}"] += 1

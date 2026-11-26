@@ -1,11 +1,30 @@
 {
-  "hospital": "Sahyog District Hospital",
+  "hospital": "Yugaantar General Hospital",
   "export": "opd-visits-v2",
   "visits": [
     {
-      "uhid": "SHY-2026-00418",
-      "patient_name": "Ritika Venkataraman",
+      "uhid": "YGH-2026-00418",
+      "patient_name": "Mohammad Arif",
       "visit_date": "04/02/2026",
+      "complaint": "Headache and giddiness for 2 days",
+      "diagnosis": "Essential hypertension (I10)",
+      "vitals": {
+        "bp": "150/90 mmHg",
+        "pulse": "88/min"
+      },
+      "medicines": [
+        {
+          "drug": "Amlodipine",
+          "dose": "5 mg",
+          "frequency": "1-0-0",
+          "days": 30
+        }
+      ]
+    },
+    {
+      "uhid": "YGH-2026-00419",
+      "patient_name": "Ritika Venkataraman",
+      "visit_date": "05/02/2026",
       "complaint": "C/O fever and body ache for 3 days",
       "diagnosis": "Dengue fever (A90)",
       "vitals": {
@@ -27,9 +46,9 @@
       }
     },
     {
-      "uhid": "SHY-2026-00419",
+      "uhid": "YGH-2026-00420",
       "patient_name": "Harjeet Bhullar",
-      "visit_date": "05/02/2026",
+      "visit_date": "06/02/2026",
       "complaint": "Burning in feet, increased thirst",
       "diagnosis": "Type 2 diabetes mellitus (E11.9)",
       "vitals": {
@@ -52,31 +71,9 @@
         {
           "type": "referral_scan",
           "encoding": "base64",
-          "data": "UmVmZXJyYWwgbm90ZS4gUGF0aWVudDogSGFyamVldCBCaHVsbGFyLCBNb2JpbGUgOTkxNTIwMzM3OC4gS25vd24gZGlhYmV0aWMsIHJlZmVyIHRvIG1lZGljaW5lIE9QRC4="
+          "data": "UmVmZXJyYWwgbm90ZS4gUGF0aWVudDogSGFyamVldCBCaHVsbGFyLCBNb2JpbGUgODg0MDE3MzA5NS4gS25vd24gZGlhYmV0aWMsIHJlZmVyIHRvIG1lZGljaW5lIE9QRC4="
         }
       ]
-    },
-    {
-      "uhid": "SHY-2026-00421",
-      "patient_name": "Imtiaz Qureshi",
-      "visit_date": "07/02/2026",
-      "complaint": "Cough with expectoration for 2 weeks",
-      "diagnosis": "Pulmonary tuberculosis (A15.0)",
-      "vitals": {
-        "bp": "118/76 mmHg",
-        "spo2": "95 %"
-      },
-      "medicines": [
-        {
-          "drug": "Isoniazid",
-          "dose": "300 mg",
-          "frequency": "1-0-0",
-          "days": 180
-        }
-      ],
-      "lab": {
-        "sputum_afb": "positive (2+)"
-      }
     }
   ]
 }
