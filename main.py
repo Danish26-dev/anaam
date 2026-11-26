@@ -24,7 +24,7 @@ from core.header_roles import find_column  # noqa: E402
 from core.network_guard import install_network_guard  # noqa: E402
 from core.preflight import run_preflight  # noqa: E402
 from core.record_ids import content_anchor  # noqa: E402
-from detection.api import extract_identity_evidence  # noqa: E402
+from detection.api import extract_identity_evidence, prepare_detection_engine  # noqa: E402
 from export.candidate import (
     CandidateFile,
     publish_candidates,
@@ -377,11 +377,6 @@ def main() -> int:
             else:
                 raise IngestError("unsupported_format")
 
-            for record in file_envelope.records:
-                evidence_text = pending_item.get("raw_evidence_text") or _record_evidence_text(record)
-                evidence_by_record[record.record_id] = extract_identity_evidence(
-                    record, evidence_text
-                )
             pending_item["envelope"] = file_envelope
             pending.append(pending_item)
 
@@ -390,6 +385,19 @@ def main() -> int:
             reason = safe_reason(exc)
             report.add_file(FileReportEntry(input_sha256=entry.sha256, output=None,
                                              status="quarantined", reason=reason))
+
+    # Danish's engine needs every file indexed (dominant date order, field classification,
+    # cross-record identity-lexicon harvesting) before any single record is detected --
+    # see DetectionEngine.prepare(). That is why evidence extraction cannot happen inside
+    # the per-file ingestion loop above and instead runs here, once every file_envelope in
+    # this input set has been built.
+    prepare_detection_engine(file_envelopes)
+    for item in pending:
+        for record in item["envelope"].records:
+            evidence_text = item.get("raw_evidence_text") or _record_evidence_text(record)
+            evidence_by_record[record.record_id] = extract_identity_evidence(
+                record, item["envelope"], evidence_text
+            )
 
     # ---- identity resolution (O6/O7) across every record found so far ----
     assignments, _ledger = cluster_records(evidence_by_record)
@@ -487,6 +495,8 @@ def main() -> int:
         for locator, record_item in record_items:
             record_id = records_by_locator[locator].record_id
             pseudonym = transform_plans[record_id].pseudonym
+            if not can_embed_pseudonym(record_item):
+                pseudonym = None
             profile_key = pseudonym or f"unlinked-json:{record_id}"
             candidate_plan = _decide_json_profile_plan(
                 pseudonym, record_item, village_group_size, district_group_size,
