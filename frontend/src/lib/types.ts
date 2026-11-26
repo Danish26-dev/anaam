@@ -5,6 +5,20 @@
 export type Verdict = "VERIFIED" | "VERIFICATION REQUIRED" | "BLOCKED";
 export type Source = "demo" | "practice" | "live";
 
+export interface Inspection {
+  extension: string | null;
+  bytes: number;
+  format: string;               // csv | tsv | json | fhir | text | unsupported | empty | undecodable
+  encoding: string | null;      // utf-8 | utf-8-sig | utf-16-le | utf-16-be | cp1252
+  delimiter?: string;
+  rows?: number;
+  columns?: number;
+  scripts?: { devanagari: number; latin: number };
+  script?: "latin" | "devanagari" | "mixed" | "none";
+  hinglish_signals?: number;
+  issues: string[];             // legacy_encoding, unrecognised_structure, empty_file, ...
+}
+
 export interface FileEntry {
   output: string | null;
   status: "sanitized" | "quarantined" | "suppressed";
@@ -15,6 +29,9 @@ export interface FileEntry {
   structure: string[];
   clinical_before: number;
   clinical_kept: number;
+  inspection?: Inspection;
+  path_renamed?: boolean;
+  source?: string | null;     // input top-level folder, only when the engine finds no PII in it
   input_name?: string | null; // synthetic demo only
 }
 
@@ -31,7 +48,17 @@ export interface Assurance {
   residual: { total: number; by_category: Record<string, number> };
   structure: { total: number; codes: Record<string, number> };
   clinical: { before: number; kept: number; by_category: { category: string; before: number; kept: number }[] };
-  identity: { records: number; linked_records: number; patients: number; clusters: Cluster[] };
+  identity: {
+    records: number; linked_records: number; patients: number; clusters: Cluster[];
+    unlinked?: { file: string; loc: string }[]; unlinked_total?: number;
+  };
+  protection?: {
+    placeholders: Record<string, number>;
+    pseudonym_occurrences: number;
+    keys_renamed: number;
+    paths_renamed: number;
+    records_generalized: number;
+  };
   release_wide: { evaluated: boolean; passed: boolean; codes: string[] };
   counts: Record<string, number>;
   timing: { seconds?: number };

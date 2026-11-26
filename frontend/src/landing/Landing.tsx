@@ -40,7 +40,7 @@ export default function Landing() {
           <a href="#how" className="hide-sm">How it works</a>
           <a href="#evidence" className="hide-sm">Evidence</a>
           <LocalChip label="Local" />
-          <Link to="/studio" className="btn btn-primary btn-sm">Open Release Studio</Link>
+          <Link to="/workspace" className="btn btn-primary btn-sm">Open Research Workspace</Link>
         </nav>
       </header>
 
@@ -53,12 +53,11 @@ export default function Landing() {
               Keep the clinical signal. <em>Leave the identity behind.</em>
             </motion.h1>
             <motion.p className="lede" {...rise(0.3)}>
-              Hospital records contain information that can advance research, and personal identities that should
-              never travel with them. Anaam protects one while preserving the other.
+              Transform fragmented hospital records into privacy-protected, clinically useful research datasets.
             </motion.p>
             <motion.div className="ctas" {...rise(0.42)}>
-              <Link to="/studio" className="btn btn-primary">Open Release Studio <span className="arrow">→</span></Link>
-              <a href="#how" className="btn btn-ghost">Explore the Firewall</a>
+              <Link to="/workspace" className="btn btn-primary">Open Research Workspace <span className="arrow">→</span></Link>
+              <a href="#how" className="btn btn-ghost">Explore How Anaam Works</a>
             </motion.div>
             <motion.div className="meta" {...rise(0.55)}>
               <span><b>Offline</b> · no network at runtime</span>
@@ -148,7 +147,7 @@ export default function Landing() {
               </Reveal>
               <Reveal delay={0.1}>
                 <p>
-                  These files belong to a synthetic demo workspace: three fictional hospitals and five invented
+                  These files belong to a synthetic demo workspace: four fictional hospitals and five invented
                   patients. The right-hand side is the engine's actual output for them, recorded from a real run.
                 </p>
               </Reveal>
@@ -206,8 +205,8 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={0.15}>
               <div className="ctas" style={{ display: "flex", gap: 12, marginTop: 40, flexWrap: "wrap" }}>
-                <Link to="/studio" className="btn btn-primary">Enter Anaam <span className="arrow">→</span></Link>
-                <Link to="/studio/new" className="btn btn-ghost">Start a release</Link>
+                <Link to="/workspace" className="btn btn-primary">Open Research Workspace <span className="arrow">→</span></Link>
+                <Link to="/intake" className="btn btn-ghost">Start a release</Link>
               </div>
             </Reveal>
           </div>

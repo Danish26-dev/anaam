@@ -256,9 +256,21 @@ Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m 
 
 ## Release Studio (demo frontend)
 
-A local product interface for the demo: a landing page and a seven-screen workspace (Overview, New Release,
-Data Inventory, Clinical Integrity, Identity Explorer, Attack Replay, Release Assurance). It is optional:
-the evaluator runs only `main.py`, and nothing in the Studio changes the engine.
+A local product interface for the demo: a landing page (`/`) and a seven-screen research release
+workspace, each screen with a Three.js view bound to the release's real results:
+
+| Route | Screen |
+|---|---|
+| `/workspace` | Command Centre: release overview, next recommended action, operations queue |
+| `/intake` | Source Intake: hospitals, files, formats, encodings, quarantine reasons |
+| `/identity` | Identity Resolution: linked patients across sources, records released unlinked |
+| `/protection` | Privacy Protection: placeholders, pseudonyms, renamed paths and keys, residual re-scan |
+| `/clinical-integrity` | Clinical Integrity: clinical values before and after, by category |
+| `/risk` | Privacy Risk: local attack lab, protected release vs an unprotected copy (practice data only) |
+| `/assurance` | Release Assurance: seven verification layers and human authorisation |
+
+It is optional: the evaluator runs only `main.py`, and nothing in the Studio changes the engine. Old
+`/studio/*` links redirect to the new routes.
 
 ```bash
 cd frontend && npm install && npm run build && cd ..          # once; needs Node 18+ (dev time only)
@@ -280,11 +292,20 @@ python tools/studio/server.py                                 # http://127.0.0.1
   lab (also against an unprotected copy as the baseline) and writes counts only to
   `out/studio/evidence.json`, which is git-ignored.
 - `tools/studio/record_demo.py` builds the **synthetic** demo workspace (`tools/studio/demo_data.py`:
-  three fictional hospitals, five invented patients), runs the real CLI on it and records the
+  four fictional hospitals, five invented patients), runs the real CLI on it and records the
   result as `frontend/src/fixtures/demo-release.json`. Every screen labels its source: SYNTHETIC
   DEMO, PRACTICE EVALUATION or LOCAL RELEASE.
+- `POST /api/inspect` runs the pipeline's own encoding, format and delimiter sniffers on a file
+  before a release (in memory; nothing is written).
+- The next recommended action comes from fixed rules in `frontend/src/state/actions.ts` over one
+  derived release model (`frontend/src/state/model.ts`). No model or network is involved.
+- Anaam never confirms a match, dismisses a finding or authorises a release by itself. A person
+  records each review with a note, and authorisation requires every layer passed, every finding
+  reviewed and an explicit confirmation. These decisions stay in the tab's memory only, never in
+  browser storage, and are lost on reload.
 - The frontend makes no third-party requests. It uses local system fonts, no analytics and no
-  browser storage. File names typed by the user stay in the tab's memory.
+  browser storage. File names typed by the user stay in the tab's memory. 3D views fall back to
+  text without WebGL and stop animating under reduced motion.
 
 ## Submission configuration
 

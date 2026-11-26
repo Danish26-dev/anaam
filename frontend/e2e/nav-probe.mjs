@@ -30,7 +30,7 @@ for (const l of internalLinks) {
   steps.push({ from: "/", click: l.text || l.href, href: l.href, url: page.url().replace(base, ""), fullReload: loads > baseLoads });
   void before;
 }
-await page.goto(base + "/studio", { waitUntil: "networkidle" });
+await page.goto(base + "/workspace", { waitUntil: "networkidle" });
 const navLinks = await page.$$eval("aside a[href]", (as) => as.map((a) => a.getAttribute("href")));
 for (const href of navLinks) {
   const b = loads;
@@ -39,7 +39,7 @@ for (const href of navLinks) {
   steps.push({ from: "studio", click: href, url: page.url().replace(base, ""), fullReload: loads > b });
 }
 // buttons inside the studio pages
-for (const route of ["/studio", "/studio/new", "/studio/inventory", "/studio/identity", "/studio/attacks", "/studio/assurance"]) {
+for (const route of ["/workspace", "/intake", "/identity", "/protection", "/clinical-integrity", "/risk", "/assurance"]) {
   await page.goto(base + route, { waitUntil: "networkidle" });
   const n = await page.locator("main button, main a[href^='/']").count();
   for (let i = 0; i < Math.min(n, 12); i++) {
@@ -54,7 +54,7 @@ for (const route of ["/studio", "/studio/new", "/studio/inventory", "/studio/ide
   }
 }
 // back / forward / direct access
-await page.goto(base + "/studio/identity", { waitUntil: "networkidle" });
+await page.goto(base + "/identity", { waitUntil: "networkidle" });
 const direct = await page.locator("h1").first().textContent();
 await page.goBack(); await page.waitForTimeout(300);
 await page.goForward(); await page.waitForTimeout(300);

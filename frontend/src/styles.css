@@ -1,14 +1,14 @@
 /* Anaam design system: editorial healthcare infrastructure. Local fonts only. */
 :root {
-  --limestone: #f2f0e8;
-  --surface: #fbfaf6;
+  --limestone: #F3F5F2;
+  --surface: #FFFFFF;
   --forest: #204b42;
   --forest-ink: #173a33;
-  --ink: #1d2926;
-  --slate: #68746d;
+  --ink: #202A27;
+  --slate: #68756E;
   --copper: #b87552;
   --sage: #aab8a9;
-  --line: #d9d9d0;
+  --line: #DCE2DC;
   --ochre: #bd8d43;
   --terracotta: #a94f45;
   --forest-08: rgba(32, 75, 66, 0.08);
