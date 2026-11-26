@@ -24,21 +24,29 @@ Danish's detection engine is wired in through `src/detection/api.py`. It provide
 
 ## Run
 
+The official checkers ship with the Team Kit and are not copied into this repository. The commands
+below assume the kit is cloned next to this repository as `../Secret-Wards-ToolKit` (set `KIT` to
+another path if not).
+
 PowerShell:
 
 ```powershell
+$KIT = "..\Secret-Wards-ToolKit"
 $env:RAKSHA_SECRET = "practice"
-python main.py --input dev\input --output my_output
-python validate_output.py --input dev\input --output my_output
-python check_dev.py --output my_output
+python main.py --input $KIT\dev\input --output my_output
+python $KIT\validate_output.py --input $KIT\dev\input --output my_output
+python $KIT\check_dev.py --output my_output
+python $KIT\check_submission.py --repo . --run   # Linux or WSL; see docs/EVALUATION.md
 ```
 
 Linux/macOS:
 
 ```bash
-RAKSHA_SECRET=practice python main.py --input dev/input --output my_output
-python validate_output.py --input dev/input --output my_output
-python check_dev.py --output my_output
+KIT=../Secret-Wards-ToolKit
+RAKSHA_SECRET=practice python main.py --input $KIT/dev/input --output my_output
+python3 $KIT/validate_output.py --input $KIT/dev/input --output my_output
+python3 $KIT/check_dev.py --output my_output
+python3 $KIT/check_submission.py --repo . --run
 ```
 
 The output directory must be empty or absent. Anaam never modifies the input tree.
