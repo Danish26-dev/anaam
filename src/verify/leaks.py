@@ -18,12 +18,20 @@ from __future__ import annotations
 
 import re
 
-from .. import contracts as c
-from ..detection.attachments import find_payloads
-from ..detection.clinical import detect_clinical
-from ..detection.engine import DetectionEngine
-from ..detection.normalization import TextView
-from ..detection.transliteration import loose_form, name_key
+try:
+    from .. import contracts as c
+    from ..detection.attachments import find_payloads
+    from ..detection.clinical import detect_clinical
+    from ..detection.engine import DetectionEngine
+    from ..detection.normalization import TextView
+    from ..detection.transliteration import loose_form, name_key
+except ImportError:  # loaded as a top-level `verify` package (Omkar's sys.path layout)
+    import contracts as c
+    from detection.attachments import find_payloads
+    from detection.clinical import detect_clinical
+    from detection.engine import DetectionEngine
+    from detection.normalization import TextView
+    from detection.transliteration import loose_form, name_key
 
 HEADER_WEAK = frozenset({"postposition", "postposition_deva", "bigram", "lexicon_token", "lexicon_place"})
 DEFAULT_ALLOWED_CATEGORIES = frozenset({

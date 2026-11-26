@@ -8,9 +8,14 @@ from __future__ import annotations
 
 from collections import Counter
 
-from .. import contracts as c
-from ..detection.clinical import detect_clinical
-from ..detection.normalization import normalize_key
+try:
+    from .. import contracts as c
+    from ..detection.clinical import detect_clinical
+    from ..detection.normalization import normalize_key
+except ImportError:  # loaded as a top-level `verify` package (Omkar's sys.path layout)
+    import contracts as c
+    from detection.clinical import detect_clinical
+    from detection.normalization import normalize_key
 
 CORE = (c.MEDICATION, c.DOSE, c.FREQUENCY, c.VITAL, c.LAB, c.DIAGNOSIS, c.DIAGNOSIS_CODE, c.PROCEDURE,
         c.COMPLAINT, c.HISTORY, c.EPONYM, c.DOCTOR, c.WARD, c.ORGANIZATION)
