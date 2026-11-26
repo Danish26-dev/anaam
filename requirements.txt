@@ -1,4 +1,3 @@
-# Runtime dependencies of the Anaam pipeline.
-# The detection and verification code uses only the Python standard library (3.10+).
-# No third-party package is required, and no model or pretrained weights are used.
-# Add a pinned line here only when a module really imports it, and declare it in README.md.
+# Anaam currently uses only the Python 3.10+ standard library.
+# No third-party package, model or pretrained weights are needed at run time.
+# Development-only test tooling is in requirements-dev.txt (not installed by raksha.toml).

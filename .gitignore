@@ -8,15 +8,16 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+*.egg-info/
 
 # --- generated outputs and local datasets (may contain practice data derivatives)
 out/
 my_output*/
 output/
 sanitized/
-*.egg-info/
 
 # --- organiser data and answers must never be published
+# Practice kit data copied from the challenge repo, not our own work.
 /Secret-Wards-ToolKit/
 dev/
 **/truth.json

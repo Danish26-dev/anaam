@@ -1,11 +1,4 @@
-# Anaam privacy policy. Simple "key: value" lines (same reader convention as the organiser starter).
-#
-# STATUS: these values are consumed by the privacy layer of the pipeline (pseudonyms, date
-# shifting, generalisation), which is NOT yet in this repository. The detection and
-# verification modules take their settings as constructor arguments (see docs/SECURITY.md).
-# Do not assume a key here changes behaviour until docs/COMPLIANCE_MATRIX.md says it does.
-
-age_band_years: 5          # ages become bands such as 45-49; a band must contain the true age
-age_top_code: 85           # ages from here upward become "85+"            (planned, to be measured)
-date_shift_max_days: 180   # one secret offset per patient, applied to every date of that patient
-min_group_size: 5          # suppress or widen quasi-identifier combinations rarer than this
+# Your privacy rules. main.py reads simple "key: value" lines.
+age_band_years: 5          # ages become bands like 45-49 (the band must contain the true age)
+date_shift_max_days: 180   # every date of one patient moves by the same secret offset
+min_group_size: 5          # widen or suppress rare location groups below this size
