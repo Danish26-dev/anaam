@@ -147,16 +147,22 @@ not just the test suite:
 
 ## Open items
 
-1. Linking on unseen formats: held-out CSV/TSV records get no pseudonym
-   (`find_patient_identity_column` doesn't recognise those headers, though the engine's field
-   classifier does: `NAME_PATIENT`, `MRN`). Linking accuracy there is unmeasured, not failing --
-   an earlier "no pseudonyms" claim was itself a measurement artefact (`check_dev.py` only scores
-   units marked `link: required`, and the chaos generator writes no patient labels at all; see
-   `EVALUATION.md` §6). Still open, unresolved.
-2. Local A4 profile re-identification at 52.7% (18.7% once the house-number measurement noise above
-   is excluded); not moved by the policy knobs. Related: A5 shows linked pseudonyms let an attacker
-   pool known facts across a patient's records more effectively than on an unprotected copy (11/18
-   vs 5/18) -- a real adverse effect of linking that needs its own fix in the privacy layer.
+1. ~~Linking on unseen formats~~ fixed (`880fc5b` CSV, `425e0b9` JSON): `detection.api.identity_column()`
+   / `identity_key_path()` fall back to the engine's field classifier (`NAME_PATIENT`, `MRN`,
+   `NAME_PERSON`) when the fixed header/key name lists in `core/header_roles.py` and
+   `export/json_writer.py` find no identity column. Verified with `tools/chaos/generate.py` unseen
+   names/headers: CSV linking 0/8 -> 8/8, TSV 0/8 -> 6/8, reconfirmed on a fresh clone of
+   `origin/main`.
+2. Local A4 profile re-identification at ~58% (122-record denominator after the linking fix above
+   widened the pooled attack surface; 18.7% once the house-number measurement noise is excluded);
+   not moved by the policy knobs. Attempted a targeted fix (rare-diagnosis suppression, a new
+   `src/privacy/rare_evidence.py`, built and unit-tested in isolation, never committed): wiring it
+   into `main.py` and the verifier's baseline restored `CONTRACT OK` but measured zero
+   change in local A4/A5 numbers while suppressing text inside a non-patient reference document and
+   a common procedure name flagged rare only by small sample size. Reverted in full rather than ship
+   an unverified change. Related: A5 shows linked pseudonyms let an attacker pool known facts across
+   a patient's records more effectively than on an unprotected copy (9/18 vs 5/18) -- a real adverse
+   effect of linking that still needs its own fix in the privacy layer.
 3. ~~Practice values in two pipeline docstrings and two pipeline test files~~ fixed, audit now clean
    (`identity=0` on both sides' independent fixes). Kit scripts (`check_dev.py`,
    `check_submission.py`, `validate_output.py`) were removed from `main` in the Release Studio

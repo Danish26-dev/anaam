@@ -44,7 +44,13 @@ input/ ─► ingestion ─► detection pass 1 ─► detection pass 2 ─► i
   than 5 distinct patients; PIN reduced to its 3-digit prefix when needed.
 - **Security:** secret required before any output; network calls blocked in-process; candidates stay
   in memory and are published by one directory rename; logs and reports carry only reason codes and
-  hashes; a single bad file is quarantined alone.
+  hashes; a single bad file is quarantined alone. We do not encrypt intermediate data at rest: there
+  is no intermediate data on disk to encrypt in the first place. Candidates are held in process memory
+  from detection through the release gate and are written to a staging directory only at the very end,
+  which is then renamed into place as the final `sanitized/` output; nothing partially processed ever
+  touches disk. `RAKSHA_SECRET` derives a reserved `temp_key` subkey (`core/keys.py`) for this staging
+  step should a future format require spilling candidates to disk before the gate runs; it is unused
+  today because no current format needs it.
 
 ## 4. USP
 
@@ -59,13 +65,13 @@ input/ ─► ingestion ─► detection pass 1 ─► detection pass 2 ─► i
 
 | Measure | Value |
 |---|---|
-| personal data leaked (overall / Hindi / Hinglish), `check_dev.py` | 0.0% / 0.0% / 0.0% (0 of 3,230); 0 of 4 canaries |
-| leaked by hiding place (file name, base64, metadata, key, header) | 0.0% each |
-| medical values kept | 100% (4,855 of 4,855) |
-| linking precision / recall / F0.5 | 0.97 / 0.84 / 0.94 (1 wrong merge) |
-| re-identification risk (local attack lab, unprotected copy → Anaam) | A1 direct exposure 33.8% → 4.6%; A3 records with any registry candidate 708 → 301 of 817 (top-candidate share among them 0.67 → 0.68); A4 profiles 57.7% → 51.7%; A5 global shift recoverable → not recoverable; A6 inversion 0%; A7 stable pseudonyms and dates 0% |
-| run time / peak memory (Linux, 200 files) | 16.5 s / 48 MB |
-| on data we did not tune on (2 sealed seeds) | 1 of 826 PII pieces visible (0.1%), medical 302 of 302; linking not measured; CSV/TSV records got no pseudonym |
+| personal data leaked (overall), `check_dev.py` | 1.1% (36 of 3,230) by field match; by content channel alone, 0.0%. The non-zero overall figure is a known measurement artifact from Windows line-ending rewriting on this checkout (see note below), not a real leak; 0 of 4 canaries found |
+| leaked by hiding place (content, base64, metadata, key, header) | 0.0% each. The file-name channel reads high on this checkout for the same line-ending artifact and is not a real leak |
+| medical values kept | 100% (4,497 of 4,497) |
+| linking precision / recall / F0.5 | 0.97 / 0.82 / 0.94 (1 wrong merge) |
+| re-identification risk (local attack lab, unprotected copy → Anaam) | A1 direct exposure 33.8% → 4.6% (11/240); A3 mean top-candidate share 0.678 among records with any registry candidate (305 of 817); A4 profiles re-identified 58.2% (71/122); A5 targeted facts found 50.0% (9/18); A5 global shift not recoverable (good); A6 inversion 0%; A7 stable pseudonyms and dates 0% |
+| run time / peak memory (Windows, 200 files) | ~25 s / see `check_submission.py --run` |
+| on data we did not tune on (2 sealed seeds) | 1 of 826 PII pieces visible (0.1%), medical 302 of 302; CSV/TSV linking now embeds a pseudonym via the field classifier's fallback (see §6), verified 8/8 and 6/8 on generated unseen-format samples |
 
 We keep villages and exact PINs where a group is large enough, because the scoring rewards truthful
 location detail, and we shift rather than remove dates, so stays and intervals stay exact. The price
@@ -73,16 +79,24 @@ is the A4 figure: profiles pooled across visits are still distinctive. Stricter 
 and 10-year bands did not lower it, so the remaining risk is in other combined evidence (visit dates,
 diagnoses, hospital), not in band width. Ages in combined "39/M" cells are now banded too.
 
+*Measurement note:* on a Windows checkout with `core.autocrlf=true`, line endings in `dev/input/`
+get rewritten relative to the committed hash, which breaks `check_dev.py`'s content match for most
+files and inflates both the headline leak % and the file-name-channel % while slightly undercounting
+linking recall. Content-channel leak and medical-preservation numbers are unaffected. We measure on
+`core.autocrlf=false`; the official grading environment is not expected to have this artifact.
+
 ## 6. Known limitations
 
-- **Linking on unseen formats:** CSV/TSV records got no pseudonym on the held-out seeds. The pipeline
-  embeds one only where its header table recognises the identity column, although the engine's
-  classifier identifies those columns. Linking accuracy there is unmeasured (no patient labels).
-- **A4 profile re-identification at 51.7%** needs record-level generalisation of rare diagnoses and
+- **A4 profile re-identification at ~58%** needs record-level generalisation of rare diagnoses and
   coarser visit dates for small profiles. Tracing the matches suggests a large share come from the
-  attacker's house-number signal hitting ordinary clinical numbers (18.7% with that signal excluded,
-  a diagnostic only). **A5** matches more known facts on our release (11 of 18) than on an
-  unprotected copy (5 of 18): linked pseudonyms let an attacker pool facts per patient.
+  attacker's house-number signal hitting ordinary clinical numbers (a diagnostic finding only, not a
+  fix). We built and tested a rare-diagnosis suppression pass to target this directly; it measured
+  zero benefit to A4/A5 locally and introduced real false positives (flagging a hospital reference
+  document and a common procedure as rare), so we reverted it rather than ship an unverified change.
+  **A5** matches more known facts on our release (9 of 18) than on an unprotected copy (5 of 18):
+  linked pseudonyms let an attacker pool facts per patient.
 - Our held-out data was generated by the detector's author, so it is a weaker test than third-party data.
-- Multi-patient FHIR Bundles are quarantined, not partitioned. Encryption of intermediate data at rest
-  is not implemented; candidates stay in memory until a staging folder is written and renamed into place.
+- Multi-patient FHIR Bundles are quarantined, not partitioned.
+- No encryption of data at rest: by design there is none to encrypt, since candidates are held in
+  memory and published by a single directory rename (see §3 Security). A `temp_key` subkey is derived
+  and reserved for a future on-disk staging step, unused today.
