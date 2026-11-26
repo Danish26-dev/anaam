@@ -24,7 +24,11 @@ from core.header_roles import find_column  # noqa: E402
 from core.network_guard import install_network_guard  # noqa: E402
 from core.preflight import run_preflight  # noqa: E402
 from core.record_ids import content_anchor  # noqa: E402
-from detection.api import extract_identity_evidence, prepare_detection_engine  # noqa: E402
+from detection.api import (  # noqa: E402
+    detection_engine,
+    extract_identity_evidence,
+    prepare_detection_engine,
+)
 from export.candidate import (
     CandidateFile,
     publish_candidates,
@@ -38,6 +42,13 @@ from export.json_writer import can_embed_pseudonym, render_json_doc, render_json
 from export.records_manifest import RecordManifestEntry, write_records_jsonl  # noqa: E402
 from export.report import FileReportEntry, ReportBuilder, peak_rss_mb  # noqa: E402
 from export.text_writer import render_text, render_text_document  # noqa: E402
+from export.verification import (  # noqa: E402
+    exempt_prefixes_for,
+    verify_csv_candidate,
+    verify_fhir_candidate,
+    verify_json_candidate,
+    verify_text_candidate,
+)
 from identity.clustering import cluster_records  # noqa: E402
 from ingest.csv_adapter import (
     build_records as build_csv_records,
@@ -392,6 +403,10 @@ def main() -> int:
     # the per-file ingestion loop above and instead runs here, once every file_envelope in
     # this input set has been built.
     prepare_detection_engine(file_envelopes)
+    from verify.release import ReleaseGate
+
+    release_gate = ReleaseGate(detection_engine(), secret=keys.secret_text())
+    release_gate.prepare()
     for item in pending:
         for record in item["envelope"].records:
             evidence_text = item.get("raw_evidence_text") or _record_evidence_text(record)
@@ -551,6 +566,16 @@ def main() -> int:
                 text_out, n = render_csv(
                     table.header, generalized_rows, table.delimiter, pids_by_row, offsets_by_row
                 )
+                original_text = table.delimiter.join(table.header) + "\n" + "\n".join(
+                    table.delimiter.join(row) for row in table.rows
+                )
+                verified = verify_csv_candidate(
+                    release_gate, out_rel, original_text, text_out, table.header,
+                    len(table.rows), table.delimiter, list(pids_by_row.values()),
+                )
+                if not verified.result.passed:
+                    raise IngestError("release_verification_failed")
+                text_out = verified.text
                 candidates.append(text_candidate(out_rel, text_out, envelope.detected_format))
                 identifiers_detected += n
                 for i in range(len(table.rows)):
@@ -604,6 +629,17 @@ def main() -> int:
                             )
                         generalized_data[array_key] = generalized_array
                     text_out, n = render_json_records(generalized_data, pids_by_locator, offsets_by_locator)
+                    exempt_prefixes = exempt_prefixes_for(
+                        t for plan in (transform_plans[r.record_id] for r in records_by_locator.values())
+                        for t in plan.field_transformations
+                    )
+                    verified = verify_json_candidate(
+                        release_gate, out_rel, data, text_out,
+                        list(pids_by_locator.values()), exempt_prefixes,
+                    )
+                    if not verified.result.passed:
+                        raise IngestError("release_verification_failed")
+                    text_out = verified.text
                 else:
                     doc_record_id = records_by_locator["doc"].record_id
                     plan = transform_plans[doc_record_id]
@@ -629,6 +665,14 @@ def main() -> int:
                         plan.date_offset_days,
                         document_pseudonym,
                     )
+                    doc_exempt_prefixes = exempt_prefixes_for(doc_transformations)
+                    verified = verify_json_candidate(
+                        release_gate, out_rel, data, text_out,
+                        [document_pseudonym], doc_exempt_prefixes,
+                    )
+                    if not verified.result.passed:
+                        raise IngestError("release_verification_failed")
+                    text_out = verified.text
                     record_manifest.append(
                         RecordManifestEntry(
                             file=f"sanitized/{out_rel}", loc="doc",
@@ -648,6 +692,10 @@ def main() -> int:
                 text_out, n = render_fhir_bundle(
                     data, idx, pid, date_offset_days=plan.date_offset_days
                 )
+                verified = verify_fhir_candidate(release_gate, out_rel, text_out, pid)
+                if not verified.result.passed:
+                    raise IngestError("release_verification_failed")
+                text_out = verified.text
                 candidates.append(text_candidate(out_rel, text_out, "fhir"))
                 identifiers_detected += n
                 record_manifest.append(
@@ -662,6 +710,12 @@ def main() -> int:
                     item["text"], document_pseudonym,
                     plan.date_offset_days,
                 )
+                verified = verify_text_candidate(
+                    release_gate, out_rel, item["text"], text_out, document_pseudonym,
+                )
+                if not verified.result.passed:
+                    raise IngestError("release_verification_failed")
+                text_out = verified.text
                 candidates.append(text_candidate(out_rel, text_out, "text"))
                 identifiers_detected += n
                 record_manifest.append(
@@ -700,11 +754,8 @@ def main() -> int:
     if len(candidates) != n_sanitized_envelopes:
         raise IngestError("candidate_file_count_mismatch")
 
-    # Omkar-owned structural validation runs before publication. Danish's independent
-    # PII/clinical verifier is inserted after this call and before publish_candidates.
+    # Omkar-owned structural validation runs before publication.
     validate_candidate_structures(candidates)
-    publish_candidates(sanitized_dir, candidates)
-    write_records_jsonl(output_root, record_manifest, exported_files)
 
     n_records = len(record_manifest)
     n_linked = sum(1 for e in record_manifest if e.patient is not None)
@@ -724,6 +775,31 @@ def main() -> int:
     )
     report.seconds = time.monotonic() - t0
     report.peak_rss_mb = peak_rss_mb()
+
+    # Danish's independent verifier already ran per-file above (see verify_*_candidate
+    # calls). This is the second half of his D9 gate: it looks at the release as a whole
+    # (report/manifest consistency, the secret itself, any known value) rather than one
+    # file at a time. It runs on the in-memory report/manifest -- built the same way
+    # report.write()/write_records_jsonl() build them -- BEFORE anything reaches disk,
+    # so an ABORT_RELEASE here never leaves a misleading sanitized/ or report.json behind.
+    report_dict = report.build(counts)
+    input_shas = {entry.sha256 for entry in inventory}
+    exported_record_entries = [
+        entry.to_json_dict() for entry in record_manifest if entry.file in exported_files
+    ]
+    # verify_release compares against paths with the "sanitized/" prefix stripped (it
+    # does the same .replace("sanitized/", "", 1) on both report["output"] and
+    # record["file"] before checking membership) -- exported_files itself keeps the
+    # prefix because that is what publish_candidates/write_records_jsonl need.
+    exported_relative = {path.replace("sanitized/", "", 1) for path in exported_files}
+    release_result = release_gate.verify_release(
+        report_dict, exported_record_entries, exported_relative, input_shas
+    )
+    if not release_result.passed:
+        raise IngestError("release_verification_failed")
+
+    publish_candidates(sanitized_dir, candidates)
+    write_records_jsonl(output_root, record_manifest, exported_files)
     report.write(output_root, counts)
 
     print(

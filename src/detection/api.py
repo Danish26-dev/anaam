@@ -34,6 +34,13 @@ _engine = DetectionEngine()
 _prepared = False
 
 
+def detection_engine() -> DetectionEngine:
+    """The single shared engine instance, for callers (the release verifier) that need
+    the real DetectionEngine object itself rather than just these wrapper functions.
+    """
+    return _engine
+
+
 def prepare_detection_engine(files: list[FileEnvelope]) -> None:
     """Run the engine's cross-file indexing pass. Must be called exactly once, after all
     FileEnvelopes for this run are built and before any detection/evidence call below.
