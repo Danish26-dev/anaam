@@ -254,6 +254,38 @@ Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m 
 - FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource type) are not passed through O10's age/village/PIN generalization; only CSV and JSON records are.
 - `report.json` shows `peak_rss_mb: 0.0` on Windows (no `resource` module); on Linux it is measured (47 MB on the practice data).
 
+## Release Studio (demo frontend)
+
+A local product interface for the demo: a landing page and a seven-screen workspace (Overview, New Release,
+Data Inventory, Clinical Integrity, Identity Explorer, Attack Replay, Release Assurance). It is optional:
+the evaluator runs only `main.py`, and nothing in the Studio changes the engine.
+
+```bash
+cd frontend && npm install && npm run build && cd ..          # once; needs Node 18+ (dev time only)
+python tools/studio/evidence.py --holdout                     # optional: measured practice evidence
+python tools/studio/server.py                                 # http://127.0.0.1:8765
+```
+
+- `tools/studio/server.py` (standard library) serves the built frontend and runs releases by calling
+  the unchanged `main.py` as a subprocess. It binds to 127.0.0.1 only and rejects non-localhost Host
+  headers, sends no CORS headers and sets a strict CSP. Uploaded inputs are deleted after each run,
+  also on failure, and only released output, `report.json` and `records.jsonl` are served.
+  `RAKSHA_SECRET` comes from its environment (or a random per-session value) and is never returned
+  or logged.
+- After `main.py`, the server runs the organiser's `validate_output.py` (from the kit folder), an
+  independent residual re-scan, structure checks, a clinical before/after count and the release-wide
+  check `verify.release.ReleaseGate.verify_release`. A release shows VERIFIED only if every check ran
+  and passed.
+- `tools/studio/evidence.py` measures the practice data with the organiser's checkers and the attack
+  lab (also against an unprotected copy as the baseline) and writes counts only to
+  `out/studio/evidence.json`, which is git-ignored.
+- `tools/studio/record_demo.py` builds the **synthetic** demo workspace (`tools/studio/demo_data.py`:
+  three fictional hospitals, five invented patients), runs the real CLI on it and records the
+  result as `frontend/src/fixtures/demo-release.json`. Every screen labels its source: SYNTHETIC
+  DEMO, PRACTICE EVALUATION or LOCAL RELEASE.
+- The frontend makes no third-party requests. It uses local system fonts, no analytics and no
+  browser storage. File names typed by the user stay in the tab's memory.
+
 ## Submission configuration
 
 `raksha.toml` is at the repository root:

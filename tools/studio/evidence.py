@@ -23,7 +23,6 @@ import secrets
 import shutil
 import subprocess
 import sys
-from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,7 +35,8 @@ from tools.attack_lab.a4_profiles import run_a4  # noqa: E402
 from tools.attack_lab.a5_targeted import run_a5  # noqa: E402
 from tools.attack_lab.common import load_known_facts, load_registry  # noqa: E402
 from tools.attack_lab.load_release import load_release_records  # noqa: E402
-from verify.clinical import protected_multiset  # noqa: E402
+sys.path.insert(0, str(ROOT / "tools" / "studio"))
+import server  # noqa: E402
 
 PY = sys.executable
 WORK = ROOT / "out" / "studio" / "evidence"
@@ -168,43 +168,6 @@ def a7(protected: Path, inp: Path) -> dict:
             "risk_rate": float(get(r"A7 risk \(max of the two\)\s*: ([\d.]+)%") or 0) / 100}
 
 
-def clinical_by_category(inp: Path, protected: Path) -> list[dict]:
-    """Protected clinical values per category before and after, matched by input hash."""
-    report = json.loads((protected / "report.json").read_text(encoding="utf-8"))
-    by_sha = _sha_index(inp)
-    before, after = Counter(), Counter()
-    for f in report["files"]:
-        if f.get("status") != "sanitized" or f["input_sha256"] not in by_sha:
-            continue
-        src = by_sha[f["input_sha256"]].read_text(encoding="utf-8", errors="replace")
-        dst = (protected / f["output"]).read_text(encoding="utf-8", errors="replace")
-        b, a = protected_multiset(src), protected_multiset(dst)
-        for key, n in b.items():
-            before[key[0]] += n
-            after[key[0]] += min(n, a.get(key, 0))
-    return [{"category": k, "before": before[k], "kept": after[k]} for k in sorted(before)]
-
-
-def inventory(protected: Path) -> dict:
-    report = json.loads((protected / "report.json").read_text(encoding="utf-8"))
-    records = [json.loads(x) for x in (protected / "records.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
-    per_file = Counter(r["file"] for r in records)
-    clusters: dict[str, list[str]] = {}
-    for r in records:
-        if r.get("patient"):
-            clusters.setdefault(r["patient"], []).append(r["file"])
-    files = [{"output": f.get("output"), "status": f["status"], "reason": f.get("reason"),
-              "input_sha256_prefix": f["input_sha256"][:12],
-              "records": per_file.get(f.get("output") or "", 0),
-              "format": Path(f["output"]).suffix.lstrip(".") if f.get("output") else None}
-             for f in report["files"]]
-    sizes = Counter(len(v) for v in clusters.values())
-    return {"report_counts": report.get("counts", {}), "timing": report.get("timing", {}),
-            "resources": report.get("resources", {}), "files": files,
-            "clusters": {"total": len(clusters), "size_histogram": {str(k): v for k, v in sorted(sizes.items())},
-                         "multi_file": sum(1 for v in clusters.values() if len(set(v)) > 1)}}
-
-
 def holdout(kit: Path, seed: str) -> dict:
     base = WORK / seed
     gen = _run([PY, "tools/chaos/generate.py", "--seed", seed, "--out", str(_fresh(base)), "--n", "60"])
@@ -248,8 +211,9 @@ def main() -> int:
     ev["contract"] = validate(kit, inp, protected)
     print("check_dev ...", flush=True)
     ev["check_dev"] = check_dev(kit, protected, truth)
-    ev["inventory"] = inventory(protected)
-    ev["clinical_by_category"] = clinical_by_category(inp, protected)
+    # the same release summary the Studio server computes for live releases (one code path)
+    server.STATE["kit"], server.STATE["secret"] = kit, "practice"
+    ev["release"] = server.assurance(inp, protected, True)
     print("attacks ...", flush=True)
     build_raw_release(inp, protected, raw)
     ev["attacks"] = {"protected": attacks(protected, attacker), "unprotected_baseline": attacks(raw, attacker),

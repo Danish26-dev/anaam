@@ -1,0 +1,82 @@
+{
+  "hospital": "Sahyog District Hospital",
+  "export": "opd-visits-v2",
+  "visits": [
+    {
+      "uhid": "SHY-2026-00418",
+      "patient_name": "Ritika Venkataraman",
+      "visit_date": "04/02/2026",
+      "complaint": "C/O fever and body ache for 3 days",
+      "diagnosis": "Dengue fever (A90)",
+      "vitals": {
+        "bp": "110/70 mmHg",
+        "pulse": "96/min",
+        "temp": "101.4 F"
+      },
+      "medicines": [
+        {
+          "drug": "Paracetamol",
+          "dose": "650 mg",
+          "frequency": "1-1-1",
+          "days": 5
+        }
+      ],
+      "lab": {
+        "platelets": "92,000 /cumm",
+        "ns1_antigen": "positive"
+      }
+    },
+    {
+      "uhid": "SHY-2026-00419",
+      "patient_name": "Harjeet Bhullar",
+      "visit_date": "05/02/2026",
+      "complaint": "Burning in feet, increased thirst",
+      "diagnosis": "Type 2 diabetes mellitus (E11.9)",
+      "vitals": {
+        "bp": "142/88 mmHg",
+        "pulse": "82/min"
+      },
+      "medicines": [
+        {
+          "drug": "Metformin",
+          "dose": "500 mg",
+          "frequency": "1-0-1",
+          "days": 30
+        }
+      ],
+      "lab": {
+        "hba1c": "8.4 %",
+        "fbs": "168 mg/dL"
+      },
+      "attachments": [
+        {
+          "type": "referral_scan",
+          "encoding": "base64",
+          "data": "UmVmZXJyYWwgbm90ZS4gUGF0aWVudDogSGFyamVldCBCaHVsbGFyLCBNb2JpbGUgOTkxNTIwMzM3OC4gS25vd24gZGlhYmV0aWMsIHJlZmVyIHRvIG1lZGljaW5lIE9QRC4="
+        }
+      ]
+    },
+    {
+      "uhid": "SHY-2026-00421",
+      "patient_name": "Imtiaz Qureshi",
+      "visit_date": "07/02/2026",
+      "complaint": "Cough with expectoration for 2 weeks",
+      "diagnosis": "Pulmonary tuberculosis (A15.0)",
+      "vitals": {
+        "bp": "118/76 mmHg",
+        "spo2": "95 %"
+      },
+      "medicines": [
+        {
+          "drug": "Isoniazid",
+          "dose": "300 mg",
+          "frequency": "1-0-0",
+          "days": 180
+        }
+      ],
+      "lab": {
+        "sputum_afb": "positive (2+)"
+      }
+    }
+  ]
+}

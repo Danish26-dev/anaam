@@ -42,6 +42,7 @@ from detection.engine import DetectionEngine  # noqa: E402
 from verify import structure as st  # noqa: E402
 from verify.clinical import protected_multiset  # noqa: E402
 from verify.leaks import LeakVerifier  # noqa: E402
+from verify.release import ReleaseGate  # noqa: E402
 
 DIST = ROOT / "frontend" / "dist"
 RELEASES = ROOT / "out" / "studio" / "releases"
@@ -168,7 +169,21 @@ def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
                                     sorted(clusters.items(), key=lambda kv: (-len(kv[1]), kv[0]))][:200]}
     res["counts"], res["timing"], res["resources"] = report.get("counts", {}), report.get("timing", {}), report.get("resources", {})
 
-    blocked = (res["contract"].get("evaluated") and not res["contract"].get("ok")) or res["structure"]["total"] > 0
+    # release-wide: every input accounted for, report/manifest consistent with the exported tree,
+    # the secret nowhere in report or manifest, no known values in them (verify.release)
+    sanitized = out / "sanitized"
+    exported = {p.relative_to(sanitized).as_posix() for p in sanitized.rglob("*") if p.is_file()} \
+        if sanitized.is_dir() else set()
+    gate = ReleaseGate(DetectionEngine(), pseudonyms, secret=STATE["secret"])
+    gate.prepare()
+    rw = gate.verify_release(report, records, exported, set(by_sha))
+    unexpected = sorted(set(exported) - {str(f.get("output", "")).replace("sanitized/", "", 1)
+                                          for f in report.get("files", []) if f.get("output")})
+    res["release_wide"] = {"evaluated": True, "passed": rw.passed and not unexpected,
+                           "codes": rw.safe_reason_codes + (["UNDECLARED_OUTPUT_FILE"] if unexpected else [])}
+
+    blocked = (res["contract"].get("evaluated") and not res["contract"].get("ok")) or res["structure"]["total"] > 0 \
+        or not res["release_wide"]["passed"]
     review = res["residual"]["total"] > 0 or res["clinical"]["kept"] < res["clinical"]["before"] \
         or not res["contract"].get("evaluated")
     res["status"] = "BLOCKED" if blocked else ("VERIFICATION REQUIRED" if review else "VERIFIED")

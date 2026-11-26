@@ -1,0 +1,276 @@
+{
+  "id": "synthetic-demo",
+  "source": "demo",
+  "label": "Synthetic demo workspace: 3 fictional hospitals, 5 invented patients",
+  "created_at": "2026-11-26T20:37:19+00:00",
+  "status": "complete",
+  "files_uploaded": 7,
+  "pipeline": {
+    "exit_code": 0,
+    "seconds": 0.57,
+    "message": "files 7 sanitized 6 quarantined 1 records 16"
+  },
+  "assurance": {
+    "contract": {
+      "evaluated": true,
+      "ok": true,
+      "errors": 0
+    },
+    "files": [
+      {
+        "output": null,
+        "status": "quarantined",
+        "reason": "unsupported",
+        "input_sha256": "88035d5a6892323187d5bbe018b6a63508671c57d34b5495266bfa4df6838483",
+        "records": 0,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 0,
+        "clinical_kept": 0,
+        "input_name": "sahyog_district_hospital/opd_visits_partial.json"
+      },
+      {
+        "output": "sanitized/arogya_diagnostics/fhir_bundle_0209.json",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "1ff2e73fac15a6489c0ac21792aa529396a25ebbeb42e22c30ba59e8882a86f8",
+        "records": 1,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 4,
+        "clinical_kept": 4,
+        "input_name": "arogya_diagnostics/fhir_bundle_0209.json"
+      },
+      {
+        "output": "sanitized/arogya_diagnostics/lab_results.tsv",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "2e6ff9547a48b94ef8682acfae188e474a050a3edb3084645aab0f2ad0cc50c3",
+        "records": 5,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 18,
+        "clinical_kept": 18,
+        "input_name": "arogya_diagnostics/lab_results.tsv"
+      },
+      {
+        "output": "sanitized/navjeevan_nursing_home/discharge_PATIENT_553b925b.txt",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "6430a057cccd5dd52fc12717a3a2f9e462a96ee2cb2a1e6363cfc711168628ba",
+        "records": 1,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 24,
+        "clinical_kept": 24,
+        "input_name": "navjeevan_nursing_home/discharge_Ritika_Venkataraman.txt"
+      },
+      {
+        "output": "sanitized/navjeevan_nursing_home/nursing_note_ward3.txt",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "a934ef1d3bd8b10d3a0912987660acd1d5cae8ae35059cb047acb927b126f604",
+        "records": 1,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 12,
+        "clinical_kept": 12,
+        "input_name": "navjeevan_nursing_home/nursing_note_ward3.txt"
+      },
+      {
+        "output": "sanitized/sahyog_district_hospital/opd_visits.json",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "d34ca5efd41b689f6159a02725f67636518cfd984de909b3ae3abc7d18d179a6",
+        "records": 3,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 26,
+        "clinical_kept": 26,
+        "input_name": "sahyog_district_hospital/opd_visits.json"
+      },
+      {
+        "output": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+        "status": "sanitized",
+        "reason": null,
+        "input_sha256": "ae97c8a0cb0f0b86f7d61dcc71cb786f452f99461c34d1d6fed375370dd72d07",
+        "records": 5,
+        "residual": 0,
+        "structure": [],
+        "clinical_before": 0,
+        "clinical_kept": 0,
+        "input_name": "sahyog_district_hospital/registration_feb2026.csv"
+      }
+    ],
+    "residual": {
+      "total": 0,
+      "by_category": {}
+    },
+    "structure": {
+      "total": 0,
+      "codes": {}
+    },
+    "clinical": {
+      "before": 84,
+      "kept": 84,
+      "by_category": [
+        {
+          "category": "COMPLAINT",
+          "before": 1,
+          "kept": 1
+        },
+        {
+          "category": "DIAGNOSIS",
+          "before": 7,
+          "kept": 7
+        },
+        {
+          "category": "DIAGNOSIS_CODE",
+          "before": 5,
+          "kept": 5
+        },
+        {
+          "category": "DOCTOR",
+          "before": 2,
+          "kept": 2
+        },
+        {
+          "category": "DOSE",
+          "before": 17,
+          "kept": 17
+        },
+        {
+          "category": "EPONYM",
+          "before": 1,
+          "kept": 1
+        },
+        {
+          "category": "FREQUENCY",
+          "before": 5,
+          "kept": 5
+        },
+        {
+          "category": "LAB",
+          "before": 29,
+          "kept": 29
+        },
+        {
+          "category": "MEDICATION",
+          "before": 12,
+          "kept": 12
+        },
+        {
+          "category": "VITAL",
+          "before": 5,
+          "kept": 5
+        }
+      ]
+    },
+    "identity": {
+      "records": 16,
+      "linked_records": 9,
+      "patients": 4,
+      "clusters": [
+        {
+          "pseudonym": "PSN-E9F0PBB84CGVN519",
+          "records": [
+            {
+              "file": "sanitized/navjeevan_nursing_home/discharge_PATIENT_553b925b.txt",
+              "loc": "doc"
+            },
+            {
+              "file": "sanitized/sahyog_district_hospital/opd_visits.json",
+              "loc": "/visits/0"
+            },
+            {
+              "file": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+              "loc": "row:0"
+            }
+          ]
+        },
+        {
+          "pseudonym": "PSN-4CKBC6AYR3XAWBKP",
+          "records": [
+            {
+              "file": "sanitized/sahyog_district_hospital/opd_visits.json",
+              "loc": "/visits/2"
+            },
+            {
+              "file": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+              "loc": "row:3"
+            }
+          ]
+        },
+        {
+          "pseudonym": "PSN-54AW2DYESTKSD7CV",
+          "records": [
+            {
+              "file": "sanitized/arogya_diagnostics/fhir_bundle_0209.json",
+              "loc": "doc"
+            },
+            {
+              "file": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+              "loc": "row:4"
+            }
+          ]
+        },
+        {
+          "pseudonym": "PSN-JMS8XHQ65NVFPN3H",
+          "records": [
+            {
+              "file": "sanitized/sahyog_district_hospital/opd_visits.json",
+              "loc": "/visits/1"
+            },
+            {
+              "file": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+              "loc": "row:1"
+            }
+          ]
+        }
+      ]
+    },
+    "counts": {
+      "files_total": 7,
+      "files_sanitized": 6,
+      "files_quarantined": 1,
+      "records_processed": 16,
+      "identifiers_detected": 70,
+      "records_linked": 9,
+      "records_generalized": 10,
+      "records_suppressed": 0,
+      "records_quarantined": 0
+    },
+    "timing": {
+      "seconds": 0.19
+    },
+    "resources": {
+      "peak_rss_mb": 0.0
+    },
+    "release_wide": {
+      "evaluated": true,
+      "passed": true,
+      "codes": []
+    },
+    "status": "VERIFIED"
+  },
+  "examples": [
+    {
+      "input_name": "navjeevan_nursing_home/discharge_Ritika_Venkataraman.txt",
+      "output": "sanitized/navjeevan_nursing_home/discharge_PATIENT_553b925b.txt",
+      "before": "NAVJEEVAN NURSING HOME, LUCKNOW\nDISCHARGE SUMMARY\n\nPatient Name : Ritika Venkataraman\nW/o Sridhar Venkataraman\nAge/Sex      : 38 Y / F\nDOB          : 14/03/1987\nContact      : +91 93810 46627\nUHID         : SHY-2026-00418\nAddress      : H.No. 27, Mohalla Naya Tola, near Hanuman Mandir, Kesarbagh, Lucknow 226014\n\nDate of admission : 06/02/2026\nDate of discharge : 11/02/2026\n\nDiagnosis: Dengue fever with thrombocytopenia (A91).\nCourse: Admitted with fever and platelet count of 48,000 /cumm. Managed with IV fluids\n(NS 1 L over 8 hrs) and Inj. Pantoprazole 40 mg IV OD. Platelets improved to 1,32,000 /cumm.\nAt discharge: BP 116/74 mmHg, pulse 84/min, afebrile.\n\nAdvice on discharge:\n1. Tab. Paracetamol 650 mg 1-1-1 x 3 days\n2. ORS 1 sachet in 1 L water, sip throughout the day\nReview in OPD after 1 week with CBC. Treating doctor: Dr. Anjali Khandekar (MD Medicine).\n",
+      "after": "NAVJEEVAN NURSING HOME, LUCKNOW\nDISCHARGE SUMMARY\n\nPatient Name : PSN-E9F0PBB84CGVN519\nW/o [RELATIVE]\nAge/Sex      : 38 Y / F\nDOB          : 27/10/1986\nContact      : [PHONE]\nUHID         : [ID]\nAddress      : [HOUSE], [LOCALITY], [LANDMARK], [VILLAGE], [ADDRESS]\n\nDate of admission : 21/09/2025\nDate of discharge : 26/09/2025\n\nDiagnosis: Dengue fever with thrombocytopenia (A91).\nCourse: Admitted with fever and platelet count of 48,000 /cumm. Managed with IV fluids\n(NS 1 L over 8 hrs) and Inj. Pantoprazole 40 mg IV OD. Platelets improved to 1,32,000 /cumm.\nAt discharge: BP 116/74 mmHg, pulse 84/min, afebrile.\n\nAdvice on discharge:\n1. Tab. Paracetamol 650 mg 1-1-1 x 3 days\n2. ORS 1 sachet in 1 L water, sip throughout the day\nReview in OPD after 1 week with CBC. Treating doctor: Dr. Anjali Khandekar (MD Medicine).\n"
+    },
+    {
+      "input_name": "navjeevan_nursing_home/nursing_note_ward3.txt",
+      "output": "sanitized/navjeevan_nursing_home/nursing_note_ward3.txt",
+      "before": "नर्सिंग नोट - वार्ड 3\nमरीज़ का नाम: हरजीत भुल्लर\nपिता का नाम: गुरनाम भुल्लर\nमोबाइल: 9915203378\nदिनांक: 08/02/2026\n\n08:00 - patient ka BP 146/90 mmHg, sugar (RBS) 212 mg/dL. Dr. Khandekar ko inform kiya.\n10:30 - Inj. Insulin regular 6 units SC diya gaya.\n14:00 - मरीज़ ने खाना ठीक से खाया। pulse 80/min, SpO2 97 %.\n",
+      "after": "नर्सिंग नोट - वार्ड 3\nमरीज़ का नाम: [PATIENT]\nपिता का नाम: [RELATIVE]\nमोबाइल: [PHONE]\nदिनांक: 16/11/2025\n\n08:00 - patient ka BP 146/90 mmHg, sugar (RBS) 212 mg/dL. Dr. Khandekar ko inform kiya.\n10:30 - Inj. Insulin regular 6 units SC diya gaya.\n14:00 - मरीज़ ने खाना ठीक से खाया। pulse 80/min, SpO2 97 %.\n"
+    },
+    {
+      "input_name": "sahyog_district_hospital/registration_feb2026.csv",
+      "output": "sanitized/sahyog_district_hospital/registration_feb2026.csv",
+      "before": "UHID,Patient Name,Guardian,Age,Gender,Mobile,Aadhaar No,Village,District,PIN Code,Registered On\nSHY-2026-00418,Ritika Venkataraman,W/o Sridhar Venkataraman,38,F,9381046627,\"7283 1904 5616\",Kesarbagh,Lucknow,226014,03/02/2026\nSHY-2026-00419,Harjeet Bhullar,S/o Gurnam Bhullar,61,M,9915203378,\"5140 2987 3361\",Mehrauli Khurd,Sitapur,261001,04/02/2026\nSHY-2026-00420,Saanvi Pathrikar,D/o Mohan Pathrikar,9,F,8840173095,\"3882 0145 6799\",Bansgaon,Barabanki,225001,05/02/2026\nSHY-2026-00421,Imtiaz Qureshi,S/o Rafiq Qureshi,47,M,7398562104,\"6091 7328 8459\",Gulabpur,Hardoi,241001,06/02/2026\nSHY-2026-00422,Leela Domnikar,W/o Prakash Domnikar,72,F,9452870631,\"8447 3029 1185\",Chandanpura,Unnao,209801,07/02/2026\n",
+      "after": "UHID,Patient Name,Guardian,Age,Gender,Mobile,Aadhaar No,Village,District,PIN Code,Registered On\nPSN-E9F0PBB84CGVN519,[PATIENT],W/o [RELATIVE],35-39,F,[PHONE],[AADHAAR],,,,18/09/2025\nPSN-JMS8XHQ65NVFPN3H,[PATIENT],S/o [RELATIVE],60-64,M,[PHONE],[AADHAAR],,,,15/04/2026\n[ID],[PATIENT],D/o [RELATIVE],5-9,F,[PHONE],[AADHAAR],,,,02/11/2025\nPSN-4CKBC6AYR3XAWBKP,[PATIENT],S/o [RELATIVE],45-49,M,[PHONE],[AADHAAR],,,,21/08/2025\nPSN-54AW2DYESTKSD7CV,[PATIENT],W/o [RELATIVE],70-74,F,[PHONE],[AADHAAR],,,,23/04/2026\n"
+    }
+  ]
+}
