@@ -63,8 +63,15 @@ item (`/patient_name`); document JSON and FHIR fields are pointers from the file
 - `src/export/*_writer.py`: optional record-context parameters, header/key sanitisation, the FHIR
   string pass, numeric identifiers. Existing call shapes still work; all 76 unittest tests pass.
 
-`src/detection/stub_detector.py` is unused and can be deleted once Omkar's local change to it is
-dropped or pushed.
+`src/detection/stub_detector.py` is unused and can be deleted.
+
+Omkar wired the engine independently on `main` (`b8aca73`, `89576e5`). Measured on the practice data,
+that version quarantined 49 files (the verifier false positives fixed on this branch), left 1.5% of
+PII visible (27.1% in file names, from the quarantined files) and linked with F0.5 0.56. The merge
+kept this branch's wiring and took his `check_json_shape` fix, `KeySet.secret_text()` (now used for
+the gate's secret check) and `src/export/verification.py`. That module is not called yet. It builds
+richer verifier inputs (original JSON, exempt generalisation prefixes) and a release-level check
+before publication, and it is the next step for the JSON shape check.
 
 ## Open points for the team
 

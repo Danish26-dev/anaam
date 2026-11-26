@@ -49,7 +49,16 @@ def _paths(obj, prefix=""):
 
 
 def check_json_shape(original: object, output: object, exempt_prefixes=()) -> list[str]:
-    """Key-path set and leaf types must match, except exempt generalizable paths."""
+    """Key-path set and leaf types must match, except exempt generalizable paths.
+
+    A collapsed array path (list indices become "*", see _paths()) can legitimately
+    carry more than one leaf type across different elements of the same array -- e.g.
+    one lab result's numeric value is an int, another's is a float. Comparing the SET of
+    types seen at each path in the original against the output (rather than picking
+    whichever element happened to be last in iteration order) avoids flagging that as a
+    change when nothing was actually touched, while still catching a real type change:
+    a path whose output type set is not a subset of its original type set.
+    """
     a, b = set(_paths(original)), set(_paths(output))
     codes = []
     ka = {p for p, _ in a}
@@ -57,9 +66,18 @@ def check_json_shape(original: object, output: object, exempt_prefixes=()) -> li
     missing = {p for p in ka - kb if not p.startswith(tuple(exempt_prefixes))}
     if missing:
         codes.append("JSON_PATHS_LOST")
-    ta = {p: t for p, t in a if p in kb}
+    types_a: dict[str, set[str]] = {}
+    for p, t in a:
+        types_a.setdefault(p, set()).add(t)
+    types_b: dict[str, set[str]] = {}
     for p, t in b:
-        if p in ta and ta[p] != t and ta[p] != "NoneType" and t != "NoneType" and not p.startswith(tuple(exempt_prefixes)):
+        types_b.setdefault(p, set()).add(t)
+    for p, out_types in types_b.items():
+        if p not in types_a or p.startswith(tuple(exempt_prefixes)):
+            continue
+        orig_types = types_a[p] - {"NoneType"}
+        extra = out_types - {"NoneType"} - orig_types
+        if extra and orig_types:
             codes.append("JSON_TYPE_CHANGED")
             break
     return codes

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from core.interfaces import IdentityEvidence, ResolvedSpan
+from core.interfaces import IdentityEvidence, REDACT, REENCODE, ResolvedSpan
 
 _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("PHONE", re.compile(r"(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?!\d)")),
@@ -32,7 +32,7 @@ def resolve_spans_in_text(text: str) -> list[ResolvedSpan]:
     for category, rx in _PATTERNS:
         for m in rx.finditer(text):
             spans.append(
-                ResolvedSpan(start=m.start(), end=m.end(), category=category, action="redact", reason_code="stub_regex")
+                ResolvedSpan(start=m.start(), end=m.end(), category=category, action=REDACT, reason_code="stub_regex")
             )
     spans.sort(key=lambda s: s.start)
     return spans
@@ -41,14 +41,23 @@ def resolve_spans_in_text(text: str) -> list[ResolvedSpan]:
 def apply_resolved_spans(text: str, spans: list[ResolvedSpan]) -> tuple[str, int]:
     """Replace each resolved span with a typed placeholder, right-to-left so earlier
     offsets stay valid. Returns (new_text, count_redacted).
+
+    Only understands REDACT (the stub never emits anything else). REENCODE spans with a
+    precomputed `replacement` are honoured too, since any upstream caller -- including
+    Danish's real engine once api.py is wired to it -- may already produce those; every
+    other action is intentionally left untouched here rather than silently treated as
+    safe-to-skip. That keeps this function honest about what it does and does not redact
+    once real spans start flowing through the same call site.
     """
     out = text
     count = 0
     for span in sorted(spans, key=lambda s: s.start, reverse=True):
-        if span.action != "redact":
-            continue
-        out = out[: span.start] + f"[{span.category}]" + out[span.end :]
-        count += 1
+        if span.action == REDACT:
+            out = out[: span.start] + f"[{span.category}]" + out[span.end :]
+            count += 1
+        elif span.action == REENCODE and span.replacement is not None:
+            out = out[: span.start] + span.replacement + out[span.end :]
+            count += 1
     return out, count
 
 

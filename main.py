@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from pathlib import Path
@@ -729,7 +728,7 @@ def main() -> int:
     gate = ReleaseGate(
         detection_engine(),
         allowed_tokens={p for p in pseudonym_map.values() if p},
-        secret=os.environ.get("RAKSHA_SECRET"),
+        secret=keys.secret_text(),
     )
     gate.prepare()
     rejected: set[int] = set()
