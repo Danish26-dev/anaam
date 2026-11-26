@@ -23,6 +23,15 @@ _DECLARED_DATE_FORMAT_RE = re.compile(
     r"\(\s*(MM|DD)\s*[/.-]\s*(DD|MM)\s*[/.-]\s*YYYY\s*\)", re.IGNORECASE
 )
 
+# A single cell encodes BOTH age and gender (e.g. "39/M"), seen in real lab-result
+# files (lab/lifeline_results.csv, lab/city_results.csv, lab/pathkind_results.csv: header
+# "age_sex", cell "39/M"). Kept as its own role rather than folding into AGE_HEADERS
+# because the generalization step needs to know to parse the combined cell differently
+# -- banding "39/M" as a bare integer would crash; it must band just the digit portion
+# and keep the gender suffix (truthful gender preservation, per O2's clinical/medical
+# vs identifying-attribute split).
+AGE_SEX_HEADERS = {"age sex", "age gender", "umar ling"}
+
 AGE_HEADERS = {
     "age", "age (yrs)", "age yrs", "patient age", "age in years",
     # "Umar" (Hindi/Hinglish for age) is the practice data's actual header in
@@ -82,8 +91,10 @@ def declared_date_hint(header: str) -> str | None:
 
 
 def role_for_header(header: str) -> str | None:
-    """Return "age" | "village" | "tehsil" | "district" | "pin" | "date" | None."""
+    """Return "age" | "age_sex" | "village" | "tehsil" | "district" | "pin" | "date" | None."""
     normalized = normalize_header(header)
+    if normalized in AGE_SEX_HEADERS:
+        return "age_sex"
     if normalized in AGE_HEADERS:
         return "age"
     if normalized in VILLAGE_HEADERS:

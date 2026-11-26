@@ -35,7 +35,8 @@ from .engine import DetectionEngine, apply_placeholders
 
 # Whole-field actions the privacy layer owns, keyed to the header role it recognises
 # (core.header_roles). A column it does not recognise stays with the engine.
-_PRIVACY_LAYER_ROLE = {c.GENERALIZE_AGE: "age", c.GENERALIZE_LOCATION: "village", c.GENERALIZE_PIN: "pin"}
+_PRIVACY_LAYER_AGE_ROLES = frozenset({"age", "age_sex"})
+_PRIVACY_LAYER_ROLE = {c.GENERALIZE_LOCATION: "village", c.GENERALIZE_PIN: "pin"}
 _KEPT_ACTIONS = frozenset({c.KEEP, c.SHIFT_DATE, c.GENERALIZE_AGE})
 # Pseudonym format issued by privacy/pseudonyms.py ("PSN-" + Crockford base32).
 _PSEUDONYM = re.compile(r"(?:Patient/)?PSN-[0-9A-HJKMNP-TV-Z]{4,}")
@@ -129,8 +130,13 @@ def field_spans(record_id: str | None, field_path: str | None, value: str) -> li
     pipeline_role = role_for_header(hint) if hint else None
     out = []
     for s in spans:
-        if (s.reason_code == "field" and s.action in _PRIVACY_LAYER_ROLE
-                and _PRIVACY_LAYER_ROLE[s.action] == pipeline_role):
+        if s.reason_code != "field":
+            out.append(s)
+            continue
+        if s.action == c.GENERALIZE_AGE and pipeline_role in _PRIVACY_LAYER_AGE_ROLES:
+            continue  # the privacy layer generalises this column truthfully (plain age
+            # or a combined "age/gender" cell -- apply_generalization.py handles both)
+        if s.action in _PRIVACY_LAYER_ROLE and _PRIVACY_LAYER_ROLE[s.action] == pipeline_role:
             continue  # the privacy layer generalises this column truthfully
         out.append(s)
     return out

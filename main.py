@@ -133,12 +133,13 @@ def _generalize_csv_rows(
     from privacy.profile_policy import decide_profile_plan as _decide_plan
 
     age_col = find_column(header, "age")
+    age_sex_col = find_column(header, "age_sex")
     village_col = find_column(header, "village")
     pin_col = find_column(header, "pin")
     tehsil_col = find_column(header, "tehsil")
     district_col = find_column(header, "district")
 
-    if age_col is None and village_col is None and pin_col is None:
+    if age_col is None and age_sex_col is None and village_col is None and pin_col is None:
         return rows, {}
 
     district_group_size = district_group_size or {}
@@ -183,6 +184,25 @@ def _generalize_csv_rows(
                 row_transformations.append(
                     FieldTransformation(
                         path=f"col:{header[age_col]}", action="generalize",
+                        replacement=new_value,
+                    )
+                )
+                row_changed = True
+
+        if age_sex_col is not None and age_sex_col < len(row):
+            # A combined "<age>/<gender>" cell (real header: "age_sex", e.g. lab result
+            # files) -- the age portion is just as identifying as a bare age column and
+            # must be banded the same way, keeping the gender suffix truthful.
+            field = FieldNode(
+                path=f"col:{header[age_sex_col]}", value=row[age_sex_col],
+                value_type="str", channel="content", role_hint="age_sex",
+            )
+            new_value, changed = generalize_field_value(field, plan, village_hierarchy)
+            if changed and new_value is not None:
+                row[age_sex_col] = new_value
+                row_transformations.append(
+                    FieldTransformation(
+                        path=f"col:{header[age_sex_col]}", action="generalize",
                         replacement=new_value,
                     )
                 )
