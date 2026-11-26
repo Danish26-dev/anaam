@@ -75,10 +75,13 @@ before publication, and it is the next step for the JSON shape check.
 
 ## Open points for the team
 
-- **Linking on unseen formats:** the held-out seeds produced no pseudonyms because
-  `find_patient_identity_column` did not recognise their identity columns. The engine's field
-  classifier already identifies those columns (`NAME_PATIENT`, `MRN`); using it there would carry
-  linking over.
+- **Linking on unseen formats (Omkar):** on the held-out seeds, CSV/TSV records got no pseudonym
+  (0 of 32) because `find_patient_identity_column` did not recognise their identity columns; text and
+  JSON records did get pseudonyms. The engine's field classifier identifies those columns
+  (`NAME_PATIENT`, `MRN`). Proposed tests: a CSV whose identity header is unseen (e.g. `Rogi Naam`,
+  `Bhartee Kramank`) must carry a pseudonym in the identity column, the header row must be unchanged,
+  and two such files sharing a patient must get the same pseudonym. Linking accuracy needs patient
+  labels in the chaos generator (Danish).
 - **A4 profile re-identification at 51%:** not moved by `min_group_size` or age-band width.
 - **Kit scripts are committed on `main`:** `check_dev.py`, `check_submission.py`, `validate_output.py`.
 - **Practice-data values in pipeline files:** docstrings in `src/identity/canonicalize.py` and

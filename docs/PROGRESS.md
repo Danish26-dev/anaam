@@ -69,7 +69,7 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 
 ## Open items
 
-1. Linking on unseen formats: no pseudonyms on the held-out seeds (`find_patient_identity_column`).
+1. Linking on unseen formats: held-out CSV/TSV records get no pseudonym (`find_patient_identity_column`); accuracy unmeasured until the chaos generator writes patient labels. (An earlier "no pseudonyms" claim was a measurement artefact; see EVALUATION section 6.)
 2. Local A4 profile re-identification at 51.0%; not moved by the policy knobs.
 3. Practice values in two pipeline docstrings and two pipeline test files; kit scripts committed.
 4. Brief PDF is a draft for team review; the held-out data was written by the detector's author.
