@@ -15,7 +15,8 @@ worktree, so no commit depends on files that arrive later.
 | 7 | `2e7f9d8` | feat(detection): engine with hidden-channel sanitisation | 294 passed |
 | 8 | `0139dfa` | feat(verify): independent release verifier | 317 passed |
 | 9 | `99297af` | test: dev bench, chaos generator, identity audit | 317 passed |
-| 10 | next commits | docs: README and compliance records | 317 passed |
+| 10 | `14b19bb` | docs: README with honest status, architecture and declared models | 317 passed |
+| 11 | `59ebf94` | docs: compliance matrix, evaluation, security, assumptions, progress, interface notes | 317 passed |
 
 ## Work completed in this branch
 
