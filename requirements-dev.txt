@@ -1,0 +1,2 @@
+# Development only: tests. Not installed by raksha.toml.
+pytest==8.3.4
