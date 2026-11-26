@@ -22,7 +22,10 @@ import hmac
 import re
 from dataclasses import dataclass, field
 
-from .. import contracts as c
+try:
+    from .. import contracts as c
+except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
+    import contracts as c
 from . import field_classifier as fc
 from .address import address_segments, detect_address_components
 from .attachments import find_payloads, sanitize_payload

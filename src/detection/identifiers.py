@@ -14,7 +14,10 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from .. import contracts as c
+try:
+    from .. import contracts as c
+except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
+    import contracts as c
 
 _B = r"(?<![A-Za-z0-9+])(?<!\d[ \t\-.])"      # not inside a longer token or digit run
 _E = r"(?![ \t\-.]?\d)(?![A-Za-z0-9])"

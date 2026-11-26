@@ -9,7 +9,10 @@ from __future__ import annotations
 import datetime as dt
 import re
 
-from .. import contracts as c
+try:
+    from .. import contracts as c
+except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
+    import contracts as c
 from .gazetteer_data import MONTHS, MONTHS_DEVA
 
 _MON = "|".join(sorted(MONTHS, key=len, reverse=True))
