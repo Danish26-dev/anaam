@@ -41,7 +41,11 @@ NON_NAME = (set(COMMON_WORDS) | {w.casefold() for w in clx.DRUGS} | {w.casefold(
                "cmo", "mo", "rmo", "hod", "ot", "icu", "er", "lama", "dama", "ok", "yes", "no", "id",
                "asha", "anm", "anganwadi", "worker", "workers", "team", "admin", "clerk", "desk"})
 NON_NAME -= {"asha"}  # a real given name; "ASHA worker" is protected by the clinical shield
-NON_NAME_DEVA = set(HINDI_COMMON_WORDS) | {"श्री", "श्रीमती", "स्व", "मो", "मोहम्मद"}
+# Generic name parts in Devanagari behave like their Latin forms in GENERIC_NAME_TOKENS ("Mohd",
+# "Mohammad"): not a name on their own, but part of the name when they lead one, so
+# "मोहम्मद आरिफ" is redacted whole, not just "आरिफ".
+GENERIC_NAME_TOKENS_DEVA = frozenset({"मो", "मोहम्मद", "मोहम्मद", "मुहम्मद"})
+NON_NAME_DEVA = (set(HINDI_COMMON_WORDS) | {"श्री", "श्रीमती", "स्व"}) | GENERIC_NAME_TOKENS_DEVA
 TITLES = set(PREFIX_TITLES) | {"dr", "doctor"}
 HONORIFICS = set(POSTFIX_HONORIFICS) | set(KIN_TERMS)
 
@@ -116,11 +120,15 @@ def _is_identifying(tok: str) -> bool:
 def trim_name(text: str, s: int, e: int, keep_honorific: bool = True) -> tuple[int, int] | None:
     """Shrink [s, e) to the name proper; None if no identifying token remains."""
     toks = _token_spans(text, s, e)
-    while toks and not _is_identifying(toks[0][2]) and toks[0][2].strip(".").casefold() not in GENERIC_NAME_TOKENS:
+    def generic(tok: str) -> bool:
+        t = tok.strip(".,:;").casefold()
+        return t in GENERIC_NAME_TOKENS or t in GENERIC_NAME_TOKENS_DEVA
+
+    while toks and not _is_identifying(toks[0][2]) and not generic(toks[0][2]):
         toks.pop(0)
     while toks:
         last = toks[-1][2].strip(".,:;").casefold()
-        if _is_identifying(toks[-1][2]) or last in GENERIC_NAME_TOKENS or (keep_honorific and last in HONORIFICS):
+        if _is_identifying(toks[-1][2]) or generic(toks[-1][2]) or (keep_honorific and last in HONORIFICS):
             break
         toks.pop()
     if not toks or not any(_is_identifying(t[2]) for t in toks):
