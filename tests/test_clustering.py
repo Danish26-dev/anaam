@@ -20,12 +20,12 @@ class ClusteringTests(unittest.TestCase):
     def test_shared_strong_identifier_links_two_records(self):
         evidence = {
             "f1:row:0": IdentityEvidence(
-                record_id="f1:row:0", patient_names=["Mahesh Chauhan"],
-                national_ids={"AADHAAR": "397205839628"},
+                record_id="f1:row:0", patient_names=["Deepak Verma"],
+                national_ids={"AADHAAR": "123498765432"},
             ),
             "f2:doc": IdentityEvidence(
-                record_id="f2:doc", patient_names=["Mahesh Chauhan"],
-                national_ids={"AADHAAR": "397205839628"},
+                record_id="f2:doc", patient_names=["Deepak Verma"],
+                national_ids={"AADHAAR": "123498765432"},
             ),
         }
         assignments, _ = cluster_records(evidence)
@@ -82,12 +82,12 @@ class ClusteringTests(unittest.TestCase):
     def test_cross_format_dob_match_links_despite_different_syntax(self):
         evidence = {
             "f5:row:0": IdentityEvidence(
-                record_id="f5:row:0", patient_names=["Usha Tiwari"],
-                date_of_birth="1970-11-10",
+                record_id="f5:row:0", patient_names=["Meena Joshi"],
+                date_of_birth="1972-08-15",
             ),
             "f6:doc": IdentityEvidence(
-                record_id="f6:doc", patient_names=["Usha Tiwari"],
-                date_of_birth="10/11/1970",
+                record_id="f6:doc", patient_names=["Meena Joshi"],
+                date_of_birth="15/08/1972",
             ),
         }
         assignments, _ = cluster_records(evidence)
@@ -106,8 +106,8 @@ class ClusteringTests(unittest.TestCase):
         -- the published rule requires a supporting clue beyond the bare name.
         """
         evidence = {
-            "x:row:0": IdentityEvidence(record_id="x:row:0", patient_names=["Vijay Yadav"]),
-            "y:row:0": IdentityEvidence(record_id="y:row:0", patient_names=["Vijay Yadav"]),
+            "x:row:0": IdentityEvidence(record_id="x:row:0", patient_names=["Sanjay Rathore"]),
+            "y:row:0": IdentityEvidence(record_id="y:row:0", patient_names=["Sanjay Rathore"]),
         }
         assignments, _ = cluster_records(evidence)
         decisions = _decisions(assignments)
