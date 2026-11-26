@@ -23,16 +23,29 @@ _DECLARED_DATE_FORMAT_RE = re.compile(
     r"\(\s*(MM|DD)\s*[/.-]\s*(DD|MM)\s*[/.-]\s*YYYY\s*\)", re.IGNORECASE
 )
 
-AGE_HEADERS = {"age", "age (yrs)", "age yrs", "patient age", "age in years"}
+AGE_HEADERS = {
+    "age", "age (yrs)", "age yrs", "patient age", "age in years",
+    # "Umar" (Hindi/Hinglish for age) is the practice data's actual header in
+    # registration/jeevanjyoti_patients.tsv. Deliberately only adding the term
+    # confirmed from real data here, not the wider set of synonyms Danish's
+    # detection.field_classifier recognizes (e.g. "umr", "aayu") -- this table is a
+    # blunt exact-match fallback used wherever a header name alone must decide a
+    # column's role (e.g. CSV generalization), and test_unrecognised_village_column_is_
+    # redacted shows an unfamiliar header deliberately falling through to the engine's
+    # own value-based detection is a real, relied-upon behaviour, not a gap to close
+    # speculatively.
+    "umar", "आयु", "उम्र",
+}
 
 VILLAGE_HEADERS = {
     "village/mohalla", "village", "mohalla", "gram", "gram/mohalla",
     "gram panchayat", "gaon", "village name",
+    "ग्राम", "गाँव", "गांव",
 }
 
-TEHSIL_HEADERS = {"tehsil", "taluka", "block"}
+TEHSIL_HEADERS = {"tehsil", "taluka", "block", "तहसील"}
 
-DISTRICT_HEADERS = {"district", "zila"}
+DISTRICT_HEADERS = {"district", "zila", "jila", "जिला"}
 
 PIN_HEADERS = {"pin", "pincode", "pin code", "postal code", "zip", "zip code"}
 
@@ -40,6 +53,11 @@ DATE_HEADERS = {
     "reg date", "registered", "dob", "date of birth", "admission date",
     "discharge date", "visit date", "collected on", "reported on", "report date",
     "bill date", "claim date",
+    # "Janm Tithi" (Hindi for date of birth) is the practice data's actual header in
+    # registration/jeevanjyoti_patients.tsv -- without this, that column's DOB values
+    # were neither shifted nor redacted, a real, measured 20.7% DOB leak confirmed by
+    # the organiser's own check_dev.py before this fix, 0.0% after.
+    "janm tithi", "janm", "जन्म तिथि", "जन्म",
 }
 
 # Ordered from strongest reference/identifier columns to name-like identity locations;
