@@ -36,7 +36,7 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 | `35b9f1f` | fix(audit): exempt documented example secrets from the secret rule | 393 passed; audit blocked=0 |
 | `039333d`, `422d756` | docs: integration guide, corrected status, commit hashes | same |
 | `e4727c2`..`5f745d6` | Omkar on `main`: contract reconciliation, plus the engine modules, tests, tools and docs re-committed from the engine branch (byte-identical modules and tests; docs equal to `4da269f`) | |
-| next | merge `origin/main` again: Omkar's `src/contracts.py` shim and `interfaces.py` kept; engine's newer docs and audit fix kept; 13 duplicate test files at `tests/` removed (identical to `tests/engine/`) | pytest 393 passed; `unittest discover -s tests` OK (76); `main.py` exit 0; CONTRACT OK |
+| `f64067b` | merge `origin/main` again: Omkar's `src/contracts.py` shim and `interfaces.py` kept; engine's newer docs and audit fix kept; 13 duplicate test files at `tests/` removed (identical to `tests/engine/`) | pytest 393 passed; `unittest discover -s tests` OK (76); `main.py` exit 0; CONTRACT OK |
 
 `main` was then fast-forwarded to the engine branch and pushed normally.
 
