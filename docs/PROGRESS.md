@@ -47,7 +47,7 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 | `a1d2478` | refactor(engine): pipeline import layout; `src/contracts.py` shim removed | checked out alone: 393 passed, unittest OK, `main.py` exit 0 |
 | `31d16a6` | feat(detection): engine wired into `main.py` and the writers | 407 passed; `check_dev.py`: 0 of 3230 PII visible, 0 of 4 canaries, 4855/4855 medical, linking F0.5 0.94 |
 | `ef86841` | feat(verify): release gate on every file before publication | 411 passed; 7 quarantined (broken inputs only), 2 re-scrubbed |
-| next | docs: measured results, held-out test, brief | 411 passed; `check_submission.py --run` READY TO SUBMIT (WSL) |
+| `886b1b4` | docs: measured results, held-out test, brief | 411 passed; `check_submission.py --run` READY TO SUBMIT (WSL) |
 
 ## Problems found and fixed during the work
 
