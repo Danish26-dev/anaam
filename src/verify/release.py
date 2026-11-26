@@ -7,6 +7,8 @@ Release failure -> abort safely: unaccounted input, report/manifest inconsistent
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 from dataclasses import dataclass
 from typing import Callable
@@ -18,7 +20,7 @@ from .leaks import LeakVerifier
 from . import structure as st
 
 SAFE_CODES = {"KNOWN_NAME", "KNOWN_ID", "KNOWN_PLACE", "NOT_UTF8", "CSV_UNPARSEABLE", "CSV_ROW_COUNT",
-              "CSV_HEADER_WIDTH", "JSON_UNPARSEABLE", "JSON_PATHS_LOST", "JSON_TYPE_CHANGED",
+              "CSV_HEADER_WIDTH", "CSV_ROW_WIDTH", "JSON_UNPARSEABLE", "JSON_PATHS_LOST", "JSON_TYPE_CHANGED",
               "FHIR_NOT_BUNDLE", "FHIR_UNRESOLVED_REFERENCE", "PSEUDONYM_MISSING"}
 
 
@@ -55,9 +57,11 @@ class ReleaseGate:
     # ------------------------------------------------------------------ one file
     def verify_file(self, cand: FileCandidate) -> c.VerificationResult:
         codes: list[str] = []
-        header_len = (cand.text.find("\n") + 1 or len(cand.text)) if cand.fmt in ("csv", "tsv") else 0
-        findings = self.leaks.scan(cand.text, cand.order, structured=cand.fmt in ("csv", "tsv", "json", "fhir"),
-                                   header_len=header_len)
+        findings = self._scan_tabular(cand) if cand.fmt in ("csv", "tsv") else None
+        if findings is None:
+            header_len = (cand.text.find("\n") + 1 or len(cand.text)) if cand.fmt in ("csv", "tsv") else 0
+            findings = self.leaks.scan(cand.text, cand.order, structured=cand.fmt in ("csv", "tsv", "json", "fhir"),
+                                       header_len=header_len)
         codes += sorted({_code(f) for f in findings})
         codes += self._structure(cand)
         if cand.original_text is not None:
@@ -73,6 +77,21 @@ class ReleaseGate:
         retry = bool(findings) and not structural
         return c.VerificationResult(False, codes, retry, c.RESCRUB if retry else c.QUARANTINE, findings)
 
+    def _scan_tabular(self, cand: FileCandidate) -> list[c.LeakFinding] | None:
+        """CSV/TSV are scanned cell by cell: digits that end one cell and start the next are not
+        a phone number. Header cells ignore weak guesses (a label, not a name). None if the file
+        does not parse, so the caller falls back to a whole-text scan."""
+        try:
+            rows = list(csv.reader(io.StringIO(cand.text, newline=""), delimiter=cand.delimiter))
+        except csv.Error:
+            return None
+        out: list[c.LeakFinding] = []
+        for i, row in enumerate(rows):
+            for cell in row:
+                if cell.strip():
+                    out += self.leaks.scan(cell, cand.order, structured=True, header_len=len(cell) if i == 0 else 0)
+        return out
+
     def _count(self, text):
         from detection.clinical import detect_clinical
         return [s for s in detect_clinical(text) if s.proposed_action == c.KEEP]
@@ -81,6 +100,8 @@ class ReleaseGate:
         codes = st.check_utf8(cand.text.encode("utf-8", errors="surrogatepass"))
         if cand.fmt in ("csv", "tsv") and cand.n_columns is not None and cand.n_rows is not None:
             codes += st.check_csv(cand.text, cand.delimiter, cand.n_columns, cand.n_rows)
+        if cand.fmt in ("csv", "tsv") and cand.original_text is not None:
+            codes += st.check_csv_row_widths(cand.text, cand.original_text, cand.delimiter)
         elif cand.fmt in ("json", "fhir"):
             errs, parsed = st.check_json(cand.text)
             codes += errs
@@ -102,6 +123,46 @@ class ReleaseGate:
         extra = self._known_spans(text)
         return apply_placeholders(text, spans + extra)
 
+    def rescrub_candidate(self, cand: FileCandidate) -> str:
+        """Rescrub that respects the file's structure: CSV/TSV cell by cell (the header row is
+        left alone, so no delimiter or column name can be edited), JSON/FHIR string values inside
+        the parsed document, anything else as text. A file whose structure still breaks is caught
+        by the re-verification and quarantined."""
+        if cand.fmt in ("csv", "tsv"):
+            try:
+                rows = list(csv.reader(io.StringIO(cand.text, newline=""), delimiter=cand.delimiter))
+            except csv.Error:
+                return self.rescrub_text(cand.text, cand.order)
+            buf = io.StringIO()
+            w = csv.writer(buf, delimiter=cand.delimiter, lineterminator="\n")
+            for i, row in enumerate(rows):
+                w.writerow(row if i == 0 else [self.rescrub_text(cell, cand.order) if cell.strip() else cell for cell in row])
+            return buf.getvalue()
+        if cand.fmt in ("json", "fhir"):
+            # Text-level first: it replaces an identifier the same way everywhere, so an id and
+            # the references to it stay consistent. If that breaks the JSON, rescrub values only.
+            text_level = self.rescrub_text(cand.text, cand.order)
+            try:
+                json.loads(text_level)
+                return text_level
+            except ValueError:
+                pass
+            try:
+                data = json.loads(cand.text)
+            except ValueError:
+                return text_level
+
+            def walk(node, key=None):
+                if isinstance(node, dict):
+                    return {k: walk(v, k) for k, v in node.items()}
+                if isinstance(node, list):
+                    return [walk(v, key) for v in node]
+                if isinstance(node, str) and key not in ("reference", "fullUrl", "id", "resourceType", "system", "url"):
+                    return self.rescrub_text(node, cand.order)
+                return node
+            return json.dumps(walk(data), ensure_ascii=False, indent=2) + "\n"
+        return self.rescrub_text(cand.text, cand.order)
+
     def _known_spans(self, text: str) -> list[c.ResolvedSpan]:
         out = []
         for f in self.leaks.scan_known(text):
@@ -117,7 +178,7 @@ class ReleaseGate:
         res = self.verify_file(cand)
         if res.terminal_action != c.RESCRUB:
             return res, cand
-        fixed = rescrub(cand) if rescrub else FileCandidate(**{**cand.__dict__, "text": self.rescrub_text(cand.text, cand.order)})
+        fixed = rescrub(cand) if rescrub else FileCandidate(**{**cand.__dict__, "text": self.rescrub_candidate(cand)})
         res2 = self.verify_file(fixed)
         if res2.passed:
             res2.safe_reason_codes = ["RESCRUBBED"]

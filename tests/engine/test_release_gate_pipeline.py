@@ -45,6 +45,39 @@ def test_patient_ids_and_hinglish_pt_are_not_lab_tests():
     assert labs("haemoglobin 10.2 g/dL")
 
 
+TSV_IN = "Reg No\tNaam\tJanm Tithi\tMobile No\tDiagnosis\nQX-1\tTarunika Vellaswami\t07-03-1971\t9123406781\tAsthma\n"
+
+
+def test_row_width_check_catches_merged_cells():
+    from verify import structure as st
+    merged = "Reg No\tNaam\tJanm Tithi\tMobile No\tDiagnosis\nQX-1\t[PERSON]\t07-03-1971 [PHONE]\tAsthma\n"
+    assert st.check_csv_row_widths(merged, TSV_IN, "\t") == ["CSV_ROW_WIDTH"]
+    assert st.check_csv_row_widths(TSV_IN, TSV_IN, "\t") == []
+
+
+def test_tabular_rescrub_keeps_delimiters_and_header():
+    import csv as _csv
+    import io as _io
+    gate = _gate()
+    leaky = "Reg No\tNaam\tJanm Tithi\tMobile No\tDiagnosis\nQX-1\t[PATIENT]\t17-03-1971\t9123406781\tAsthma\n"
+    cand = FileCandidate(text=leaky, original_text=TSV_IN, fmt="tsv", n_columns=5, n_rows=1, delimiter="\t")
+    res, fixed = gate.verify_and_fix(cand)
+    rows = list(_csv.reader(_io.StringIO(fixed.text), delimiter="\t"))
+    assert [len(r) for r in rows] == [5, 5]
+    assert rows[0] == ["Reg No", "Naam", "Janm Tithi", "Mobile No", "Diagnosis"]
+    assert "9123406781" not in fixed.text and "Asthma" in fixed.text
+    assert res.passed
+
+
+def test_digits_across_two_cells_are_not_a_phone():
+    gate = _gate()
+    # "98765" ending one cell and "43210" starting the next must not read as one phone number
+    # (a whole-row scan reports RESIDUAL_PHONE here, because \s in the phone pattern matches a tab)
+    text = "Code\tCount\nRX-98765\t43210\n"
+    tsv = FileCandidate(text=text, original_text=text, fmt="tsv", n_columns=2, n_rows=1, delimiter="\t")
+    assert not [f for f in gate.verify_file(tsv).findings if f.category == "RESIDUAL_PHONE"]
+
+
 def test_uuid_prefix_is_not_a_dose():
     text = "urn:uuid:81cc-7d1e-4b2a-9c3d"
     assert not [s for s in detect_clinical(text) if s.category == c.DOSE]

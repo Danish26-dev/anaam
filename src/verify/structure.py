@@ -30,6 +30,21 @@ def check_csv(output: str, delimiter: str, n_columns: int, n_rows: int) -> list[
     return codes
 
 
+def check_csv_row_widths(output: str, original: str, delimiter: str) -> list[str]:
+    """Every released row must have exactly as many cells as the same input row (ragged input
+    rows are kept as they are). A redaction that swallowed a delimiter merges two cells."""
+    try:
+        out_rows = list(csv.reader(io.StringIO(output, newline=""), delimiter=delimiter))
+        in_rows = list(csv.reader(io.StringIO(original, newline=""), delimiter=delimiter))
+    except csv.Error:
+        return ["CSV_UNPARSEABLE"]
+    if len(out_rows) != len(in_rows):
+        return ["CSV_ROW_COUNT"]
+    if any(len(a) != len(b) for a, b in zip(in_rows, out_rows)):
+        return ["CSV_ROW_WIDTH"]
+    return []
+
+
 def check_json(output: str) -> tuple[list[str], object | None]:
     try:
         return [], json.loads(output)
