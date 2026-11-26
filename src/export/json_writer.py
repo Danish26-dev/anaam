@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 import json
 
-from detection.api import number_is_identifier, sanitize_keys
+from detection.api import identity_key_path, number_is_identifier, sanitize_keys
 from export.text_writer import render_text
 from ingest.json_adapter import pointer_escape, record_arrays
 from privacy.date_shift import shift_date_string
@@ -44,12 +44,31 @@ def _identity_path(value: object, prefix: tuple[object, ...] = ()) -> tuple[obje
     return None
 
 
-def can_embed_pseudonym(value: object) -> bool:
-    return _identity_path(value) is not None
+def _identity_path_with_fallback(
+    value: object, input_sha256: str | None, record_pointer: str | None
+) -> tuple[object, ...] | None:
+    """The fixed-name table first; if that finds nothing and this record has been
+    through prepare() (input_sha256/record_pointer given), fall back to the engine's
+    field classifier, which recognises a patient-identity key from its own values even
+    when the key name itself is one this table has never seen -- the gap that left
+    unseen-format JSON records with a renamed identity key unlinked.
+    """
+    found = _identity_path(value)
+    if found is not None or input_sha256 is None or record_pointer is None:
+        return found
+    return identity_key_path(input_sha256, record_pointer)
 
 
-def _embed_pseudonym(value: dict, pseudonym: str) -> bool:
-    path = _identity_path(value)
+def can_embed_pseudonym(
+    value: object, input_sha256: str | None = None, record_pointer: str | None = None
+) -> bool:
+    return _identity_path_with_fallback(value, input_sha256, record_pointer) is not None
+
+
+def _embed_pseudonym(
+    value: dict, pseudonym: str, input_sha256: str | None = None, record_pointer: str | None = None
+) -> bool:
+    path = _identity_path_with_fallback(value, input_sha256, record_pointer)
     if path is None:
         return False
     node: dict = value
@@ -136,11 +155,12 @@ def render_json_doc(
     date_offset_days: int = 0,
     pseudonym: str | None = None,
     record_id: str | None = None,
+    input_sha256: str | None = None,
 ) -> tuple[str, int]:
     stats = {"redacted": 0, "unshiftable_dates": 0}
     source = copy.deepcopy(data)
     if pseudonym is not None and isinstance(source, dict):
-        _embed_pseudonym(source, pseudonym)
+        _embed_pseudonym(source, pseudonym, input_sha256, "")
     cleaned = _clean_value(source, stats, date_offset_days, "" if record_id else None, record_id)
     return json.dumps(cleaned, ensure_ascii=False, indent=2) + "\n", stats["redacted"]
 
@@ -150,6 +170,7 @@ def render_json_records(
     pseudonyms_by_locator: dict[str, str | None],
     date_offsets_by_locator: dict[str, int] | None = None,
     record_ids_by_locator: dict[str, str] | None = None,
+    input_sha256: str | None = None,
 ) -> tuple[str, int]:
     """Clean every top-level record array using per-locator release decisions."""
     stats = {"redacted": 0, "unshiftable_dates": 0}
@@ -171,7 +192,7 @@ def render_json_records(
                 source_item = copy.deepcopy(item)
                 pseudonym = pseudonyms_by_locator.get(locator)
                 if pseudonym is not None:
-                    _embed_pseudonym(source_item, pseudonym)
+                    _embed_pseudonym(source_item, pseudonym, input_sha256, locator)
                 record_id = record_ids_by_locator.get(locator)
                 # The adapter's field pointers are relative to the record item.
                 cleaned_item = _clean_value(

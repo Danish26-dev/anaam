@@ -624,7 +624,7 @@ def main() -> int:
                             profile_key = plan.pseudonym or f"unlinked-json:{record_id}"
                             pids_by_locator[locator] = (
                                 plan.pseudonym
-                                if can_embed_pseudonym(record_item)
+                                if can_embed_pseudonym(record_item, envelope.input_sha256, locator)
                                 else None
                             )
                             plan.pseudonym = pids_by_locator[locator]
@@ -651,6 +651,7 @@ def main() -> int:
                     text_out, n = render_json_records(
                         generalized_data, pids_by_locator, offsets_by_locator,
                         {locator: record.record_id for locator, record in records_by_locator.items()},
+                        envelope.input_sha256,
                     )
                 else:
                     doc_record_id = records_by_locator["doc"].record_id
@@ -659,7 +660,7 @@ def main() -> int:
                     profile_key = plan.pseudonym or f"unlinked-json:{doc_record_id}"
                     document_pseudonym = (
                         plan.pseudonym
-                        if can_embed_pseudonym(data)
+                        if can_embed_pseudonym(data, envelope.input_sha256, "")
                         else None
                     )
                     plan.pseudonym = document_pseudonym
@@ -678,6 +679,7 @@ def main() -> int:
                         plan.date_offset_days,
                         document_pseudonym,
                         doc_record_id,
+                        envelope.input_sha256,
                     )
                     record_manifest.append(
                         RecordManifestEntry(

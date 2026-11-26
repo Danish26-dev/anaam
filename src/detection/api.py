@@ -191,6 +191,35 @@ def date_order(input_sha256: str) -> str | None:
     return _order.get(input_sha256)
 
 
+def identity_key_path(input_sha256: str, record_pointer: str) -> tuple[object, ...] | None:
+    """The first key path (as a tuple of dict keys, possibly nested) under a JSON
+    record whose own pattern the engine's field classifier recognises as NAME_PATIENT,
+    MRN, or (last resort) NAME_PERSON -- the JSON counterpart to identity_column() above,
+    for a record whose identity key is not one of json_writer.py's fixed
+    _IDENTITY_KEY_PRIORITY names (an unseen-format dataset with a renamed key).
+
+    `record_pointer` is this record's own RFC 6901 pointer within the file (e.g.
+    "/patients/3"), matching the prefix the engine's field patterns carry for fields
+    inside that record. Returns None if no column classifies as patient identity.
+    """
+    eng = engine()
+    prefix = record_pointer.rstrip("/")
+    candidates: dict[str, tuple[object, ...]] = {}
+    for (sha, pattern), cls in eng._field_class.items():
+        if sha != input_sha256 or cls not in _IDENTITY_FIELD_CLASSES:
+            continue
+        if not pattern.startswith(prefix + "/"):
+            continue
+        relative = pattern[len(prefix) + 1:]
+        if "/" in relative:
+            continue  # only a direct (possibly renamed) key on this record, not nested
+        candidates[cls] = (relative.replace("~1", "/").replace("~0", "~"),)
+    for priority_class in _IDENTITY_FIELD_CLASSES:
+        if priority_class in candidates:
+            return candidates[priority_class]
+    return None
+
+
 # NAME_PERSON is a deliberately weaker fallback than NAME_PATIENT/MRN: a column the
 # classifier could only tell is "some person's name" without enough context to say whose
 # (see field_classifier.classify_header's generic "name"-key defaulting rule). Still
