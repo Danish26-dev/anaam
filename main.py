@@ -752,8 +752,25 @@ def main() -> int:
             delimiter=table.delimiter if table is not None else ",",
             order=detection_date_order(item["envelope"].input_sha256),
         )
+        # ReleaseGate's default rescrub (rescrub_text) runs the detector over the WHOLE
+        # candidate text as one flat string, with no column/row/syntax boundary
+        # awareness. Confirmed by direct observation on real CSV/TSV output: a detected
+        # span can straddle a column delimiter, so redacting it deletes the delimiter
+        # along with the cell content -- merging two cells and shifting every later
+        # column in that row left by one (e.g. an age value silently replaced by a
+        # phone placeholder, an Aadhaar number replaced by a date, because every column
+        # after the corrupted one now lines up with the wrong header). The same risk
+        # applies to JSON/FHIR, where a blind substring edit can break the syntax
+        # outright. Only free "text" files have no structure a blind rescrub can
+        # corrupt, so only they get the default rescrub; every structured format gets a
+        # no-op rescrub instead, so a residual leak goes straight to quarantine --
+        # safe -- instead of a "fix" that can silently corrupt the row.
+        no_safe_rescrub = candidate.format != "text"
         try:
-            verdict, fixed = gate.verify_and_fix(check)
+            if no_safe_rescrub:
+                verdict, fixed = gate.verify_and_fix(check, rescrub=lambda c: c)
+            else:
+                verdict, fixed = gate.verify_and_fix(check)
         except Exception:  # noqa: BLE001 - a verifier crash must not release the file
             verdict, fixed = None, check
         if verdict is not None and verdict.passed:
