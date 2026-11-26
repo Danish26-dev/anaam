@@ -27,16 +27,22 @@ def _national_id_conflict(a: IdentityEvidence, b: IdentityEvidence) -> bool:
     )
 
 
-def _scoped_values(evidence: IdentityEvidence) -> dict[str, set[str]]:
-    values: dict[str, set[str]] = {}
+def _scoped_values(evidence: IdentityEvidence) -> dict[tuple[str, str], set[str]]:
+    """Group scoped identifier values by (scope, kind) so an MRN and an insurance ID
+    that happen to share a scope prefix are never compared against each other.
+    """
+    values: dict[tuple[str, str], set[str]] = {}
     for identifier in evidence.scoped_ids:
-        values.setdefault(identifier.system, set()).add(identifier.value)
+        values.setdefault((identifier.scope, identifier.kind), set()).add(identifier.value)
     return values
 
 
 def _scoped_id_conflict(a: IdentityEvidence, b: IdentityEvidence) -> bool:
     a_values, b_values = _scoped_values(a), _scoped_values(b)
-    return any(a_values[system].isdisjoint(b_values[system]) for system in set(a_values) & set(b_values))
+    return any(
+        a_values[scope_kind].isdisjoint(b_values[scope_kind])
+        for scope_kind in set(a_values) & set(b_values)
+    )
 
 
 def has_hard_conflict(a: IdentityEvidence, b: IdentityEvidence) -> bool:
@@ -49,8 +55,8 @@ def _has_shared_strong_id(a: IdentityEvidence, b: IdentityEvidence) -> bool:
         value_a, value_b = a.national_ids.get(identifier_type), b.national_ids.get(identifier_type)
         if value_a and value_b and value_a == value_b:
             return True
-    a_scoped = {(identifier.system, identifier.value) for identifier in a.scoped_ids}
-    b_scoped = {(identifier.system, identifier.value) for identifier in b.scoped_ids}
+    a_scoped = {(identifier.scope, identifier.kind, identifier.value) for identifier in a.scoped_ids}
+    b_scoped = {(identifier.scope, identifier.kind, identifier.value) for identifier in b.scoped_ids}
     return bool(a_scoped & b_scoped)
 
 

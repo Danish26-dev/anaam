@@ -101,7 +101,7 @@ Pair scoring applies the published rule: link on a shared strong identifier, or 
 Abstention is intentional: an unresolved record receives `patient: null` rather than a risky merge.
 Danish's detection and verification engine is also in this repository: the clinical shield, multilingual PII detection, the identity lexicon, hidden-channel sanitisation and the independent release verifier (see [Detection and verification engine](#detection-and-verification-engine) below).
 
-**The two halves are not wired together yet.** `main.py` still routes detection through `src/detection/api.py`, which delegates to the temporary regex stub `src/detection/stub_detector.py`. The engine cannot be plugged in until the shared contract is reconciled (field names, span action names, import layout; see `docs/INTERFACE_NOTES.md`). Practice results from `main.py` today therefore reflect the stub, not the engine.
+**The two halves are not wired together yet.** `main.py` still routes detection through `src/detection/api.py`, which delegates to the temporary regex stub `src/detection/stub_detector.py`. The shared dataclasses are reconciled in `src/core/interfaces.py`; what remains before the engine can be plugged in is the span action names and the engine's import layout (see `docs/INTERFACE_NOTES.md`). Practice results from `main.py` today therefore reflect the stub, not the engine.
 ## Pseudonyms
 
 A linked cluster receives:

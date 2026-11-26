@@ -34,7 +34,9 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 |---|---|---|
 | `eace4a7` | merge `origin/main` into the engine branch; 5 add/add conflicts resolved (see commit message) | pytest 393 passed; `unittest discover -s tests` OK with and without pytest; `main.py` exit 0; CONTRACT OK |
 | `35b9f1f` | fix(audit): exempt documented example secrets from the secret rule | 393 passed; audit blocked=0 |
-| `039333d` | docs: integration guide and corrected status | same |
+| `039333d`, `422d756` | docs: integration guide, corrected status, commit hashes | same |
+| `e4727c2`..`5f745d6` | Omkar on `main`: contract reconciliation, plus the engine modules, tests, tools and docs re-committed from the engine branch (byte-identical modules and tests; docs equal to `4da269f`) | |
+| next | merge `origin/main` again: Omkar's `src/contracts.py` shim and `interfaces.py` kept; engine's newer docs and audit fix kept; 13 duplicate test files at `tests/` removed (identical to `tests/engine/`) | pytest 393 passed; `unittest discover -s tests` OK (76); `main.py` exit 0; CONTRACT OK |
 
 `main` was then fast-forwarded to the engine branch and pushed normally.
 
@@ -51,7 +53,8 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 
 1. The engine is not wired into `main.py` (`docs/INTERFACE_NOTES.md` lists every change needed).
    Until then the release relies on the regex stub: 73.9% of practice PII visible, 4 of 4 canaries leaked, no linking.
-2. Contract reconciliation: Omkar first (`src/core/interfaces.py`), then Danish adapts.
+2. Contract: Omkar's reconciliation is in. Danish still has to switch the engine's imports, map the
+   stub's lower-case actions, and remove the `src/contracts.py` shim.
 3. `check_submission.py --run` not confirmed: needs a Linux or WSL run.
 4. Practice values in two pipeline docstrings and two pipeline test files; kit scripts committed.
 5. No sealed holdout, no peak-memory figure, no brief PDF.

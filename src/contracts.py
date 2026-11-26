@@ -1,236 +1,124 @@
-"""Shared interfaces between the pipeline (Omkar) and detection/verification (Danish).
+"""Compatibility shim: `src.contracts` re-exports the reconciled shared contract.
 
-Status: PROPOSED. These follow section 2 of the two-person plan. Fields marked
-"ADDITION" are not in the plan; both owners must approve them before relying on them.
+Omkar's pipeline and Danish's detection/verification engine were built in parallel and
+each independently drafted a version of the shared dataclasses and vocabulary (Omkar's
+`src/core/interfaces.py`, Danish's proposed `src/contracts.py`). Once both halves existed,
+the two were reconciled into a single source of truth at `src/core/interfaces.py` (see
+that module's docstring for exactly what changed and why).
 
-Nothing in these objects may be logged or serialized outside the release itself.
-Raw values in FieldNode and IdentityEvidence stay in memory only.
+Danish's detection and verification modules, and their tests, import this module as
+`from .. import contracts as c` / `from src import contracts as c` and reference dozens of
+names via `c.X`. Rather than rewrite every one of those call sites, this module re-exports
+the reconciled contract under the same name, so `c.ResolvedSpan`, `c.ScopedIdentifier`,
+`c.PATIENT_NAME`, etc. all resolve to the single real definition in `core.interfaces`.
+
+Do not add new definitions here. Add them to `core/interfaces.py` and they will appear
+here automatically via the star import.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import sys
+from pathlib import Path
 
-# --------------------------------------------------------------------------- channels
-CONTENT = "content"
-HEADER = "header"
-KEY = "key"
-METADATA = "metadata"
-FILENAME = "filename"
-BASE64 = "base64"
-FHIR_NARRATIVE = "fhir_narrative"
-CHANNELS = (CONTENT, HEADER, KEY, METADATA, FILENAME, BASE64, FHIR_NARRATIVE)
+# This module is reachable two ways depending on which half of the team imported it:
+#   * Omkar's pipeline adds `src/` itself to sys.path, so `core.interfaces` resolves
+#     directly as a top-level package.
+#   * Danish's tests put the repo ROOT on sys.path and import this as `src.contracts`,
+#     so `src/` is never on sys.path and a plain `from core.interfaces import ...` fails.
+# Ensuring `src/`'s parent... no: ensuring `src/` itself is on sys.path here makes both
+# import styles resolve to the exact same module object (no duplicate class definitions,
+# so isinstance/dataclass identity checks keep working either way).
+_SRC_DIR = Path(__file__).resolve().parent
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 
-# --------------------------------------------------------------------------- span actions
-KEEP = "KEEP"                          # protected value, informational only
-REDACT = "REDACT"                      # replace with a typed placeholder
-PSEUDONYMIZE = "PSEUDONYMIZE"          # replace with the record's pseudonym (else placeholder)
-SHIFT_DATE = "SHIFT_DATE"              # privacy layer shifts the date
-GENERALIZE_AGE = "GENERALIZE_AGE"      # privacy layer bands the age
-GENERALIZE_LOCATION = "GENERALIZE_LOCATION"  # privacy layer lifts village to tehsil/district
-GENERALIZE_PIN = "GENERALIZE_PIN"      # privacy layer reduces the PIN
-REENCODE = "REENCODE"                  # use ResolvedSpan.replacement (sanitized payload)
-ACTIONS = (KEEP, REDACT, PSEUDONYMIZE, SHIFT_DATE, GENERALIZE_AGE, GENERALIZE_LOCATION,
-           GENERALIZE_PIN, REENCODE)
-
-# --------------------------------------------------------------------------- categories
-PATIENT_NAME = "PATIENT_NAME"
-RELATIVE_NAME = "RELATIVE_NAME"
-PERSON_NAME = "PERSON_NAME"            # a person whose role is unknown
-PHONE = "PHONE"
-PHONE_MASKED = "PHONE_MASKED"
-EMAIL = "EMAIL"
-AADHAAR = "AADHAAR"
-AADHAAR_MASKED = "AADHAAR_MASKED"
-ABHA_NUMBER = "ABHA_NUMBER"
-ABHA_ADDRESS = "ABHA_ADDRESS"
-PAN = "PAN"
-MRN = "MRN"
-INSURANCE_ID = "INSURANCE_ID"
-OTHER_ID = "OTHER_ID"
-DOB = "DOB"
-ADDRESS = "ADDRESS"
-HOUSE = "HOUSE"
-LOCALITY = "LOCALITY"
-LANDMARK = "LANDMARK"
-VILLAGE = "VILLAGE"
-PIN = "PIN"
-PAYLOAD = "PAYLOAD"                    # an encoded payload that contained PII
-
-PII_CATEGORIES = frozenset({
-    PATIENT_NAME, RELATIVE_NAME, PERSON_NAME, PHONE, PHONE_MASKED, EMAIL, AADHAAR,
-    AADHAAR_MASKED, ABHA_NUMBER, ABHA_ADDRESS, PAN, MRN, INSURANCE_ID, OTHER_ID, DOB,
-    ADDRESS, HOUSE, LOCALITY, LANDMARK, VILLAGE, PIN, PAYLOAD,
-})
-NAME_CATEGORIES = frozenset({PATIENT_NAME, RELATIVE_NAME, PERSON_NAME})
-
-# quasi-identifiers that are transformed, not removed, by default
-DATE = "DATE"
-AGE = "AGE"
-GENDER = "GENDER"
-TEHSIL = "TEHSIL"
-DISTRICT = "DISTRICT"
-QI_CATEGORIES = frozenset({DATE, AGE, GENDER, TEHSIL, DISTRICT})
-
-# protected clinical and context values
-MEDICATION = "MEDICATION"
-DOSE = "DOSE"
-FREQUENCY = "FREQUENCY"
-DURATION = "DURATION"
-VITAL = "VITAL"
-LAB = "LAB"
-LAB_RANGE = "LAB_RANGE"
-DIAGNOSIS = "DIAGNOSIS"
-DIAGNOSIS_CODE = "DIAGNOSIS_CODE"
-PROCEDURE = "PROCEDURE"
-COMPLAINT = "COMPLAINT"
-HISTORY = "HISTORY"
-EPONYM = "EPONYM"
-DOCTOR = "DOCTOR"
-WARD = "WARD"
-DEPARTMENT = "DEPARTMENT"
-ORGANIZATION = "ORGANIZATION"
-CLINICAL_CONTEXT = "CLINICAL_CONTEXT"
-PROTECTED_CATEGORIES = frozenset({
-    MEDICATION, DOSE, FREQUENCY, DURATION, VITAL, LAB, LAB_RANGE, DIAGNOSIS, DIAGNOSIS_CODE,
-    PROCEDURE, COMPLAINT, HISTORY, EPONYM, DOCTOR, WARD, DEPARTMENT, ORGANIZATION,
+from core.interfaces import *  # noqa: F401,F403,E402
+from core.interfaces import (  # noqa: F401,E402
+    ABHA_ADDRESS,
+    ABHA_NUMBER,
+    AADHAAR,
+    AADHAAR_MASKED,
+    ABORT_RELEASE,
+    ACTIONS,
+    ADDRESS,
+    AGE,
+    BASE64,
+    CHANNELS,
     CLINICAL_CONTEXT,
-})
-
-# span tiers, lower wins (plan section D3)
-TIER_DIRECT_ID = 1
-TIER_EXPLICIT_IDENTITY = 2
-TIER_QUASI = 3          # dates and ages: beat weak names, lose to clinical protection
-TIER_PROTECTED = 4
-TIER_WEAK = 5
-
-
-# --------------------------------------------------------------------------- Omkar -> Danish
-@dataclass
-class FieldNode:
-    path: str
-    value: object
-    value_type: str               # "str" | "int" | "float" | "bool" | "null"
-    channel: str = CONTENT
-    role_hint: str | None = None  # CSV header text or JSON key
-
-
-@dataclass
-class RecordEnvelope:
-    record_id: str
-    file_sha256: str
-    locator: str                  # row:N, RFC 6901 pointer, doc, or "@file" (file-level channels)
-    format: str                   # csv | tsv | json | fhir | text
-    fields: list[FieldNode] = field(default_factory=list)
-    free_text: str | None = None
-    rendering_metadata: dict = field(default_factory=dict)
-
-
-@dataclass
-class FileEnvelope:
-    input_sha256: str
-    relative_path: str
-    detected_format: str
-    detected_encoding: str | None
-    size_bytes: int
-    records: list[RecordEnvelope] = field(default_factory=list)
-    terminal_status: str | None = None
-
-
-# --------------------------------------------------------------------------- Danish -> Omkar
-@dataclass
-class SpanCandidate:
-    start: int
-    end: int
-    category: str
-    role: str | None
-    confidence: float
-    tier: int
-    source: str
-    proposed_action: str
-
-
-@dataclass
-class ResolvedSpan:
-    start: int
-    end: int
-    category: str
-    action: str
-    reason_code: str
-    field_path: str = ""                       # ADDITION: which FieldNode the offsets refer to
-    replacement: str | None = None             # ADDITION: precomputed value for REENCODE
-    attrs: dict = field(default_factory=dict)  # ADDITION: non-PII hints (date format, primary name)
-
-
-@dataclass
-class ScopedIdentifier:                         # ADDITION: referenced by the plan, never defined
-    scope: str                                  # hospital or ID-system prefix, normalized
-    kind: str                                   # MRN | INSURANCE_ID | OTHER_ID
-    value: str                                  # normalized value (digit core for MRNs)
-
-
-@dataclass
-class IdentityEvidence:
-    record_id: str
-    patient_names: list[str] = field(default_factory=list)
-    relative_names: list[str] = field(default_factory=list)
-    doctor_names: list[str] = field(default_factory=list)
-    national_ids: dict[str, str] = field(default_factory=dict)
-    scoped_ids: list[ScopedIdentifier] = field(default_factory=list)
-    phones: list[str] = field(default_factory=list)
-    date_of_birth: str | None = None
-    age: int | None = None
-    gender: str | None = None
-    village: str | None = None
-    tehsil: str | None = None
-    district: str | None = None
-    hospital: str | None = None
-
-
-# --------------------------------------------------------------------------- Omkar's objects
-@dataclass
-class ClusterAssignment:
-    record_id: str
-    cluster_key: str | None
-    decision: str                 # MUST_LINK | PROBABLE_LINK | UNRESOLVED | CANNOT_LINK
-    evidence_codes: list[str] = field(default_factory=list)
-
-
-@dataclass
-class FieldTransformation:                      # ADDITION: placeholder for Omkar to define
-    field_path: str
-    action: str
-    params: dict = field(default_factory=dict)
-
-
-@dataclass
-class TransformPlan:
-    record_id: str
-    pseudonym: str | None
-    date_offset_days: int
-    resolved_spans: list[ResolvedSpan] = field(default_factory=list)
-    field_transformations: list[FieldTransformation] = field(default_factory=list)
-    status: str = "sanitized"
-
-
-# --------------------------------------------------------------------------- verification
-RELEASE = "RELEASE"
-RESCRUB = "RESCRUB"
-QUARANTINE = "QUARANTINE"
-ABORT_RELEASE = "ABORT_RELEASE"
-
-
-@dataclass
-class LeakFinding:                              # ADDITION: position and kind, never the value
-    start: int
-    end: int
-    category: str
-    channel: str = CONTENT
-
-
-@dataclass
-class VerificationResult:
-    passed: bool
-    safe_reason_codes: list[str] = field(default_factory=list)
-    retry_allowed: bool = False
-    terminal_action: str = RELEASE
-    findings: list[LeakFinding] = field(default_factory=list)  # ADDITION
+    COMPLAINT,
+    CONTENT,
+    DATE,
+    DEPARTMENT,
+    DIAGNOSIS,
+    DIAGNOSIS_CODE,
+    DISTRICT,
+    DOB,
+    DOCTOR,
+    DOSE,
+    DURATION,
+    EMAIL,
+    EPONYM,
+    FHIR_NARRATIVE,
+    FILENAME,
+    FREQUENCY,
+    GENDER,
+    GENERALIZE_AGE,
+    GENERALIZE_LOCATION,
+    GENERALIZE_PIN,
+    HEADER,
+    HISTORY,
+    HOUSE,
+    INSURANCE_ID,
+    KEEP,
+    KEY,
+    LAB,
+    LAB_RANGE,
+    LANDMARK,
+    LOCALITY,
+    MEDICATION,
+    METADATA,
+    MRN,
+    NAME_CATEGORIES,
+    ORGANIZATION,
+    OTHER_ID,
+    PAN,
+    PATIENT_NAME,
+    PAYLOAD,
+    PERSON_NAME,
+    PHONE,
+    PHONE_MASKED,
+    PII_CATEGORIES,
+    PIN,
+    PROCEDURE,
+    PROTECTED_CATEGORIES,
+    PSEUDONYMIZE,
+    QI_CATEGORIES,
+    REDACT,
+    REENCODE,
+    RELATIVE_NAME,
+    RELEASE,
+    RESCRUB,
+    QUARANTINE,
+    SHIFT_DATE,
+    TEHSIL,
+    TIER_DIRECT_ID,
+    TIER_EXPLICIT_IDENTITY,
+    TIER_PROTECTED,
+    TIER_QUASI,
+    TIER_WEAK,
+    VILLAGE,
+    VITAL,
+    WARD,
+    ClusterAssignment,
+    FieldNode,
+    FieldTransformation,
+    FileEnvelope,
+    IdentityEvidence,
+    LeakFinding,
+    RecordEnvelope,
+    ResolvedSpan,
+    ScopedIdentifier,
+    SpanCandidate,
+    TransformPlan,
+    VerificationResult,
+)

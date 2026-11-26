@@ -29,8 +29,9 @@ Decisions that the official documents do not settle, or where they disagree.
    when the path contains a space (POSIX quoting); it needs Linux or WSL.
 10. **`python` on this machine** resolves to a Store alias; checks were run with the project venv first on `PATH`.
 11. **One interface file.** The pipeline's `src/core/interfaces.py` stays as the single source of truth;
-   the engine's `src/contracts.py` is to be removed once the engine is ported. The field, action-name and
-   import-layout differences are listed in `docs/INTERFACE_NOTES.md`.
+   since Omkar's reconciliation (`e4727c2`) the engine's `src/contracts.py` is a re-export shim, to be
+   removed once the engine is ported. The remaining action-name and import-layout differences are listed
+   in `docs/INTERFACE_NOTES.md`.
 14. **Merge conflict choices** (`eace4a7`): `raksha.toml` and `config/policy.yaml` kept the pipeline's
    versions because `main.py` reads them (team name stays `anaam`); `.gitignore` is the union.
 15. **Two test runners.** Pipeline tests use the standard library (`unittest`); engine tests use pytest
