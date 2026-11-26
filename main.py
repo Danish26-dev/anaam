@@ -24,7 +24,12 @@ from core.header_roles import find_column  # noqa: E402
 from core.network_guard import install_network_guard  # noqa: E402
 from core.preflight import run_preflight  # noqa: E402
 from core.record_ids import content_anchor  # noqa: E402
-from detection.api import extract_identity_evidence  # noqa: E402
+from detection.api import (  # noqa: E402
+    configure as configure_detection,
+    extract_identity_evidence,
+    prepare as prepare_detection,
+    sanitize_path,
+)
 from export.candidate import (
     CandidateFile,
     publish_candidates,
@@ -291,6 +296,7 @@ def main() -> int:
 
     t0 = time.monotonic()
     sanitized_dir = output_root / "sanitized"
+    configure_detection(keys.filename_key)
 
     inventory = build_inventory(input_root)
 
@@ -377,11 +383,6 @@ def main() -> int:
             else:
                 raise IngestError("unsupported_format")
 
-            for record in file_envelope.records:
-                evidence_text = pending_item.get("raw_evidence_text") or _record_evidence_text(record)
-                evidence_by_record[record.record_id] = extract_identity_evidence(
-                    record, evidence_text
-                )
             pending_item["envelope"] = file_envelope
             pending.append(pending_item)
 
@@ -390,6 +391,28 @@ def main() -> int:
             reason = safe_reason(exc)
             report.add_file(FileReportEntry(input_sha256=entry.sha256, output=None,
                                              status="quarantined", reason=reason))
+
+    # ---- detection (Danish's engine): harvest over ALL parsed files, then per record ----
+    detection_failures = prepare_detection([item["envelope"] for item in pending])
+    still_pending = []
+    for item in pending:
+        envelope = item["envelope"]
+        if envelope.input_sha256 in detection_failures:
+            envelope.terminal_status = "quarantined"
+            report.add_file(FileReportEntry(
+                input_sha256=item["entry"].sha256, output=None, status="quarantined",
+                reason=detection_failures[envelope.input_sha256],
+            ))
+            continue
+        # File and folder names: the engine removes names and IDs, the mapper then
+        # replaces any remaining identifier-shaped component with a keyed token.
+        item["out_rel"] = resolve_output_relative_path(
+            keys.filename_key, sanitize_path(item["entry"].relative_path)
+        )
+        for record in envelope.records:
+            evidence_by_record[record.record_id] = extract_identity_evidence(record)
+        still_pending.append(item)
+    pending = still_pending
 
     # ---- identity resolution (O6/O7) across every record found so far ----
     assignments, _ledger = cluster_records(evidence_by_record)
@@ -538,8 +561,12 @@ def main() -> int:
                     plan.field_transformations.extend(row_transformations)
                     if row_transformations:
                         mark_generalized(plan)
+                record_ids_by_row = {
+                    i: records_by_locator[f"row:{i}"].record_id for i in range(len(table.rows))
+                }
                 text_out, n = render_csv(
-                    table.header, generalized_rows, table.delimiter, pids_by_row, offsets_by_row
+                    table.header, generalized_rows, table.delimiter, pids_by_row, offsets_by_row,
+                    record_ids_by_row,
                 )
                 candidates.append(text_candidate(out_rel, text_out, envelope.detected_format))
                 identifiers_detected += n
@@ -566,6 +593,8 @@ def main() -> int:
                             locator = f"/{escaped_key}/{i}"
                             record_id = records_by_locator[locator].record_id
                             plan = transform_plans[record_id]
+                            # Plans were keyed before the embeddability check below.
+                            profile_key = plan.pseudonym or f"unlinked-json:{record_id}"
                             pids_by_locator[locator] = (
                                 plan.pseudonym
                                 if can_embed_pseudonym(record_item)
@@ -574,7 +603,6 @@ def main() -> int:
                             plan.pseudonym = pids_by_locator[locator]
                             offsets_by_locator[locator] = plan.date_offset_days
 
-                            profile_key = plan.pseudonym or f"unlinked-json:{record_id}"
                             village_level_plan = json_plan_by_profile[profile_key]
                             generalized_item, item_transformations = generalize_json_record(
                                 record_item, village_level_plan, village_hierarchy
@@ -593,10 +621,15 @@ def main() -> int:
                                 )
                             )
                         generalized_data[array_key] = generalized_array
-                    text_out, n = render_json_records(generalized_data, pids_by_locator, offsets_by_locator)
+                    text_out, n = render_json_records(
+                        generalized_data, pids_by_locator, offsets_by_locator,
+                        {locator: record.record_id for locator, record in records_by_locator.items()},
+                    )
                 else:
                     doc_record_id = records_by_locator["doc"].record_id
                     plan = transform_plans[doc_record_id]
+                    # Plans were keyed before the embeddability check below.
+                    profile_key = plan.pseudonym or f"unlinked-json:{doc_record_id}"
                     document_pseudonym = (
                         plan.pseudonym
                         if can_embed_pseudonym(data)
@@ -604,7 +637,6 @@ def main() -> int:
                     )
                     plan.pseudonym = document_pseudonym
 
-                    profile_key = document_pseudonym or f"unlinked-json:{doc_record_id}"
                     village_level_plan = json_plan_by_profile[profile_key]
                     generalized_data, doc_transformations = generalize_json_record(
                         data, village_level_plan, village_hierarchy
@@ -618,6 +650,7 @@ def main() -> int:
                         generalized_data,
                         plan.date_offset_days,
                         document_pseudonym,
+                        doc_record_id,
                     )
                     record_manifest.append(
                         RecordManifestEntry(
@@ -636,7 +669,7 @@ def main() -> int:
                 plan = transform_plans[record_id]
                 pid = plan.pseudonym
                 text_out, n = render_fhir_bundle(
-                    data, idx, pid, date_offset_days=plan.date_offset_days
+                    data, idx, pid, date_offset_days=plan.date_offset_days, record_id=record_id
                 )
                 candidates.append(text_candidate(out_rel, text_out, "fhir"))
                 identifiers_detected += n
@@ -650,7 +683,7 @@ def main() -> int:
                 document_pseudonym = plan.pseudonym
                 text_out, n = render_text_document(
                     item["text"], document_pseudonym,
-                    plan.date_offset_days,
+                    plan.date_offset_days, doc_record_id,
                 )
                 candidates.append(text_candidate(out_rel, text_out, "text"))
                 identifiers_detected += n
