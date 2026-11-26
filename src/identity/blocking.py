@@ -47,8 +47,8 @@ def generate_candidates(evidence_by_record: dict[str, IdentityEvidence]) -> list
 
         for identifier_type, value in sorted(evidence.national_ids.items()):
             _add_block(national_id_index, f"{identifier_type}:{value}", record_id)
-        for scoped in sorted(evidence.scoped_ids, key=lambda item: (item.system, item.value)):
-            _add_block(scoped_id_index, f"{scoped.system}:{scoped.value}", record_id)
+        for scoped in sorted(evidence.scoped_ids, key=lambda item: (item.scope, item.kind, item.value)):
+            _add_block(scoped_id_index, f"{scoped.scope}:{scoped.kind}:{scoped.value}", record_id)
         for phone in sorted(evidence.phones):
             canonical = canonical_phone(phone)
             if len(canonical) == 10:

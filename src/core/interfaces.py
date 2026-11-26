@@ -4,16 +4,136 @@ This module is the single source of truth for every dataclass listed in the team
 "Shared internal interfaces" section. Both halves of the pipeline import from here so the
 contract cannot drift between the two of us.
 
+Reconciled from two independently-drafted versions (Omkar's `src/core/interfaces.py` and
+Danish's proposed `src/contracts.py`) once both the pipeline and the detection/verification
+engine existed. Differences and how they were resolved:
+  * `ScopedIdentifier` now uses Danish's richer (scope, kind, value) shape instead of
+    Omkar's (system, value) -- `kind` distinguishes MRN/INSURANCE_ID/OTHER_ID, which the
+    detector already produces and the identity resolver can use directly.
+  * `ResolvedSpan` gained `field_path`, `replacement` and `attrs`, used by the span
+    resolver and writers to know exactly which field an offset range refers to and what
+    sanitized value to substitute for a REENCODE action.
+  * `FieldTransformation` keeps Omkar's (path, action, replacement) shape: Danish's
+    version was an explicit placeholder ("ADDITION: placeholder for Omkar to define")
+    never constructed by his code, so there was nothing to reconcile here.
+  * `VerificationResult` gained `findings: list[LeakFinding]` so a verifier can report
+    *where* a problem was found (position + category + channel) without ever including
+    the matched value itself.
+  * The channel/action/category/tier string vocabulary from Danish's `src/contracts.py`
+    is adopted here as the single source of truth for those constants, replacing the
+    ad-hoc inline string literals previously scattered across both sides' code.
+
 Rules that apply across this whole file:
   * Nothing here stores RAKSHA_SECRET.
   * `IdentityEvidence` and `FieldNode.value` may carry raw PII in memory -- never log or
     repr() them, and never let them reach stdout/stderr/report.json.
-  * Everything else (ResolvedSpan, ClusterAssignment, VerificationResult, ...) must be
-    safe to log, because they contain no raw personal values, only categories/decisions.
+  * Everything else (ResolvedSpan, ClusterAssignment, VerificationResult, LeakFinding...)
+    must be safe to log: no raw personal values, only categories, positions and codes.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
+# --------------------------------------------------------------------------- channels
+CONTENT = "content"
+HEADER = "header"
+KEY = "key"
+METADATA = "metadata"
+FILENAME = "filename"
+BASE64 = "base64"
+FHIR_NARRATIVE = "fhir_narrative"
+CHANNELS = (CONTENT, HEADER, KEY, METADATA, FILENAME, BASE64, FHIR_NARRATIVE)
+
+# --------------------------------------------------------------------------- span actions
+KEEP = "KEEP"                                  # protected value, informational only
+REDACT = "REDACT"                              # replace with a typed placeholder
+PSEUDONYMIZE = "PSEUDONYMIZE"                  # replace with the record's pseudonym (else placeholder)
+SHIFT_DATE = "SHIFT_DATE"                      # privacy layer shifts the date
+GENERALIZE_AGE = "GENERALIZE_AGE"              # privacy layer bands the age
+GENERALIZE_LOCATION = "GENERALIZE_LOCATION"    # privacy layer lifts village to tehsil/district
+GENERALIZE_PIN = "GENERALIZE_PIN"              # privacy layer reduces the PIN
+REENCODE = "REENCODE"                          # use ResolvedSpan.replacement (sanitized payload)
+ACTIONS = (
+    KEEP, REDACT, PSEUDONYMIZE, SHIFT_DATE, GENERALIZE_AGE, GENERALIZE_LOCATION,
+    GENERALIZE_PIN, REENCODE,
+)
+
+# --------------------------------------------------------------------------- categories
+PATIENT_NAME = "PATIENT_NAME"
+RELATIVE_NAME = "RELATIVE_NAME"
+PERSON_NAME = "PERSON_NAME"                    # a person whose role is unknown
+PHONE = "PHONE"
+PHONE_MASKED = "PHONE_MASKED"
+EMAIL = "EMAIL"
+AADHAAR = "AADHAAR"
+AADHAAR_MASKED = "AADHAAR_MASKED"
+ABHA_NUMBER = "ABHA_NUMBER"
+ABHA_ADDRESS = "ABHA_ADDRESS"
+PAN = "PAN"
+MRN = "MRN"
+INSURANCE_ID = "INSURANCE_ID"
+OTHER_ID = "OTHER_ID"
+DOB = "DOB"
+ADDRESS = "ADDRESS"
+HOUSE = "HOUSE"
+LOCALITY = "LOCALITY"
+LANDMARK = "LANDMARK"
+VILLAGE = "VILLAGE"
+PIN = "PIN"
+PAYLOAD = "PAYLOAD"                            # an encoded payload that contained PII
+
+PII_CATEGORIES = frozenset({
+    PATIENT_NAME, RELATIVE_NAME, PERSON_NAME, PHONE, PHONE_MASKED, EMAIL, AADHAAR,
+    AADHAAR_MASKED, ABHA_NUMBER, ABHA_ADDRESS, PAN, MRN, INSURANCE_ID, OTHER_ID, DOB,
+    ADDRESS, HOUSE, LOCALITY, LANDMARK, VILLAGE, PIN, PAYLOAD,
+})
+NAME_CATEGORIES = frozenset({PATIENT_NAME, RELATIVE_NAME, PERSON_NAME})
+
+# quasi-identifiers that are transformed, not removed, by default
+DATE = "DATE"
+AGE = "AGE"
+GENDER = "GENDER"
+TEHSIL = "TEHSIL"
+DISTRICT = "DISTRICT"
+QI_CATEGORIES = frozenset({DATE, AGE, GENDER, TEHSIL, DISTRICT})
+
+# protected clinical and context values
+MEDICATION = "MEDICATION"
+DOSE = "DOSE"
+FREQUENCY = "FREQUENCY"
+DURATION = "DURATION"
+VITAL = "VITAL"
+LAB = "LAB"
+LAB_RANGE = "LAB_RANGE"
+DIAGNOSIS = "DIAGNOSIS"
+DIAGNOSIS_CODE = "DIAGNOSIS_CODE"
+PROCEDURE = "PROCEDURE"
+COMPLAINT = "COMPLAINT"
+HISTORY = "HISTORY"
+EPONYM = "EPONYM"
+DOCTOR = "DOCTOR"
+WARD = "WARD"
+DEPARTMENT = "DEPARTMENT"
+ORGANIZATION = "ORGANIZATION"
+CLINICAL_CONTEXT = "CLINICAL_CONTEXT"
+PROTECTED_CATEGORIES = frozenset({
+    MEDICATION, DOSE, FREQUENCY, DURATION, VITAL, LAB, LAB_RANGE, DIAGNOSIS, DIAGNOSIS_CODE,
+    PROCEDURE, COMPLAINT, HISTORY, EPONYM, DOCTOR, WARD, DEPARTMENT, ORGANIZATION,
+    CLINICAL_CONTEXT,
+})
+
+# span tiers, lower wins (plan section D3)
+TIER_DIRECT_ID = 1
+TIER_EXPLICIT_IDENTITY = 2
+TIER_QUASI = 3          # dates and ages: beat weak names, lose to clinical protection
+TIER_PROTECTED = 4
+TIER_WEAK = 5
+
+# release decisions (verifier terminal actions)
+RELEASE = "RELEASE"
+RESCRUB = "RESCRUB"
+QUARANTINE = "QUARANTINE"
+ABORT_RELEASE = "ABORT_RELEASE"
 
 
 # --------------------------------------------------------------------------- ingestion (Omkar)
@@ -84,8 +204,11 @@ class ResolvedSpan:
     start: int
     end: int
     category: str
-    action: str  # "redact" | "generalize" | "preserve"
+    action: str  # one of the ACTIONS constants above
     reason_code: str
+    field_path: str = ""  # which FieldNode these offsets refer to
+    replacement: str | None = None  # precomputed value for a REENCODE action
+    attrs: dict = field(default_factory=dict)  # non-PII hints, e.g. detected date format
 
 
 # --------------------------------------------------------------------------- identity
@@ -93,8 +216,9 @@ class ResolvedSpan:
 class ScopedIdentifier:
     """An identifier that is only unique within one system/hospital (e.g. an MRN)."""
 
-    system: str  # e.g. "hospital:SNJ" or "system:ABHA"
-    value: str
+    scope: str  # hospital or ID-system prefix, normalized (e.g. "hospital:snj")
+    kind: str  # MRN | INSURANCE_ID | OTHER_ID
+    value: str  # normalized value (digit core for MRNs)
 
 
 @dataclass
@@ -155,10 +279,23 @@ class TransformPlan:
 
 
 @dataclass
+class LeakFinding:
+    """One thing the verifier found wrong with a candidate release. Position and
+    category only -- never the matched text.
+    """
+
+    start: int
+    end: int
+    category: str
+    channel: str = CONTENT
+
+
+@dataclass
 class VerificationResult:
     """Danish's independent judgement on whether a candidate release is safe to publish."""
 
     passed: bool
     safe_reason_codes: list[str] = field(default_factory=list)
     retry_allowed: bool = True
-    terminal_action: str = "RELEASE"  # RELEASE | RESCRUB | QUARANTINE | ABORT_RELEASE
+    terminal_action: str = RELEASE  # RELEASE | RESCRUB | QUARANTINE | ABORT_RELEASE
+    findings: list[LeakFinding] = field(default_factory=list)
