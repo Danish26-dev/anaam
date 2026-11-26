@@ -71,33 +71,74 @@ generic findings 128 (single common first names and generic address words). The 
 gazetteer has 447 entries, of which 76 (17%) appear in the practice data; it is used only to
 profile column values, not to decide redaction.
 
-## 5. The submission entry point today (`main.py` with the regex stub)
+## 5. The submission entry point (`main.py` with the engine wired in)
 
-After the merge, `main.py` (Omkar's pipeline) still calls the detection stub, not the engine. On the
-practice data with `RAKSHA_SECRET=practice`:
+`main.py` runs the detection engine through `src/detection/api.py` and the release gate before
+publication (branch `feature/engine-wiring`). Practice data, `RAKSHA_SECRET=practice`, official
+`check_dev.py`:
 
-| Measure | `main.py` today |
-|---|---|
-| exit code, files | 0; 200 accounted for, 193 sanitized, 7 quarantined, 817 records |
-| contract | `validate_output.py`: CONTRACT OK |
-| personal data still visible (official `check_dev.py`) | 2387 of 3230 (73.9%); latin 72.0%, Devanagari 93.7%, Hinglish 100% |
-| by hiding place | content 74.5%, filename 0.0%, base64 / metadata / key / header 100% |
-| planted canaries leaked | 4 of 4 |
-| medical values kept | 4855 of 4855 |
-| patient linking | precision 0, recall 0 (the stub returns no identity evidence) |
-| raw copies | 0 |
+| Measure | Before wiring (regex stub) | After wiring |
+|---|---|---|
+| exit code, files | 0; 193 sanitized, 7 quarantined | 0; 193 sanitized, 7 quarantined (the broken inputs only) |
+| contract (`validate_output.py`) | CONTRACT OK | CONTRACT OK |
+| personal data still visible | 2387 of 3230 (73.9%) | **0 of 3230 (0.0%)**; Latin, Devanagari, Hinglish all 0.0% |
+| by hiding place | base64 / metadata / key / header 100% | content, filename, base64, metadata, key, header all 0.0% |
+| planted canaries leaked | 4 of 4 | **0 of 4** |
+| medical values kept | 4855 of 4855 | 4855 of 4855 |
+| patient linking | precision 0, recall 0 | **precision 0.97, recall 0.84, F0.5 0.94**; 1 wrong merge |
+| records linked / generalised | 0 / 114 | 718 / 114 |
+| raw copies | 0 | 0 |
+| release gate | not run | 2 files re-scrubbed, 0 rejected |
 
-The gap between this table and section 2 is the value of wiring the engine in (`docs/INTERFACE_NOTES.md`).
+The engine was developed against this practice data, so these numbers are an upper bound. Section 6
+is the honest generalisation test.
 
-## 6. Official submission check
+Local attack lab (`tools/attack_lab`, approximations of `ATTACKS.md`, not official scores):
 
-`check_submission.py --repo . --run` could **not** be confirmed on this machine. The checker quotes
-paths with POSIX single quotes (`shlex.quote`); Windows `cmd` keeps the quotes and splits the workspace
-path at its space (`LOCAL STORAGE`), so `main.py` reports "unrecognized arguments" and exits 2. Running
-`main.py` directly works (section 5). The same run confirmed that the secret was never written and
-the input was left unchanged. A Linux or WSL run is needed for the official result.
+| Attack | Result | Note |
+|---|---|---|
+| A1 direct exposure | 11 of 240 registry people | all 11 are Aadhaar last-4 digits appearing inside other numbers or as a standalone 4-digit value; no full name or phone survives |
+| A3 record linkage | mean top-candidate share 0.615 | |
+| A4 profile re-identification | 77 of 151 profiles (51.0%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year age bands, so the policy knobs are not the cause |
+| A5 targeted | 11 of 18 facts; global shift not recoverable | |
+| A6 pseudonym inversion | 0 of 48 | keyed HMAC |
+| A7 cross-release | 0 stable pseudonyms; 27 of 817 date pairs (3.3%) coincide | |
 
-## 7. Test history
+## 6. Held-out test (sealed chaos seeds, no tuning afterwards)
 
-393 tests pass after the merge (76 pipeline, 317 engine). Each engine commit was also checked out in an isolated worktree and its own tests run:
-23, 57, 143, 286, 294, 317 and 317 tests passed at the commits that contain tests (see `PROGRESS.md`).
+Seeds `holdout-1` and `holdout-2` (60 patients each) were generated and run once after the wiring
+was finished. Names, labels, ID shapes, date formats and nesting do not appear in the practice data.
+The generator was written by the engine's author, so this is a weaker test than data from a third party.
+
+| Measure | holdout-1 | holdout-2 |
+|---|---|---|
+| files | 40 sanitized, 0 quarantined | 44 sanitized, 0 quarantined |
+| contract | CONTRACT OK | CONTRACT OK |
+| personal data still visible (`check_dev.py`) | 1 of 405 (0.2%) | 0 of 421 (0.0%) |
+| strict token recall (`score_dev.py`, weighted macro) | 0.998 (one village missed) | 1.000 |
+| canaries | 0 of 3 | 0 of 3 |
+| medical values kept | 145 of 145 | 157 of 157 |
+| patient linking | **0 (no pseudonyms issued)** | **0 (no pseudonyms issued)** |
+
+Linking on unseen formats is the main generalisation gap: identity resolution depends on
+`core.header_roles` recognising a patient-identity column, and the chaos headers are not in its
+table. Detection carried over; linking did not. Recorded, not tuned against.
+
+## 7. Official submission check
+
+`check_submission.py --repo . --run` under WSL Ubuntu (Python 3.12.3, a `python` alias to `python3`
+on `PATH`, which the `run` line needs): **READY TO SUBMIT**. Exit 0 in 18.1 s, CONTRACT OK,
+identical output with the same secret, different output with a different secret, secret never
+written, input unchanged. The only warning is the missing brief PDF.
+
+Resources on Linux (`/usr/bin/time -v`, 200 practice files): 16.5 s wall clock, 48.2 MB peak
+resident memory (`report.json`: 14.7 s, 47.1 MB). The event limit is 15 minutes per run.
+
+On Windows the checker cannot run `main.py` when the path contains a space (POSIX quoting), and
+`report.json` shows `peak_rss_mb: 0.0` because the `resource` module is unavailable there.
+
+## 8. Test history
+
+411 tests pass (76 pipeline unittest, 335 engine pytest including 18 integration and release-gate
+tests). The import-layout commit was also checked out in an isolated worktree and passed on its own
+(393 tests, `main.py` exit 0).

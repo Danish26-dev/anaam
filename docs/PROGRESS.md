@@ -40,6 +40,15 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 
 `main` was then fast-forwarded to the engine branch and pushed normally.
 
+## Wiring (branch `feature/engine-wiring`, from `main` at `4d38f34`)
+
+| Commit | What | Verified |
+|---|---|---|
+| `a1d2478` | refactor(engine): pipeline import layout; `src/contracts.py` shim removed | checked out alone: 393 passed, unittest OK, `main.py` exit 0 |
+| `31d16a6` | feat(detection): engine wired into `main.py` and the writers | 407 passed; `check_dev.py`: 0 of 3230 PII visible, 0 of 4 canaries, 4855/4855 medical, linking F0.5 0.94 |
+| `ef86841` | feat(verify): release gate on every file before publication | 411 passed; 7 quarantined (broken inputs only), 2 re-scrubbed |
+| next | docs: measured results, held-out test, brief | 411 passed; `check_submission.py --run` READY TO SUBMIT (WSL) |
+
 ## Problems found and fixed during the work
 
 - The identity audit found 143 practice-data identities in the engine's own tests, tools and comments,
@@ -48,13 +57,20 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
   across a line break, Devanagari generic name parts, a tab read as a label gap.
 - After the merge, `unittest discover` without pytest failed with 8 import errors on the engine's pytest
   files. Fixed by moving them to `tests/engine/` before the merge.
+- Wiring: JSON array-item fields are pointers relative to the item, so the first wiring passed full
+  pointers and a third of lookups missed their context. A `None == None` comparison dropped every span
+  on unrecognised columns (28% leaked on one run). A latent `KeyError` in `main.py` appeared once records
+  were linked. A JSON number holding an Aadhaar was passed through. All fixed with tests.
+- Release gate: letters inside a pseudonym's code spelled a harvested name, so the gate flagged it and
+  the re-scrub cut the pseudonym; ward numbers in addresses counted as clinical loss; a UUID starting
+  `81cc-` read as a dose. 39 good files were rejected before these fixes, 0 after.
+- The first wiring commit staged only the shim deletion (a deleted path made `git add` fail). The two
+  unpushed local commits were rebuilt with `git reset --soft`; nothing pushed was rewritten.
 
-## Open blockers
+## Open items
 
-1. The engine is not wired into `main.py` (`docs/INTERFACE_NOTES.md` lists every change needed).
-   Until then the release relies on the regex stub: 73.9% of practice PII visible, 4 of 4 canaries leaked, no linking.
-2. Contract: Omkar's reconciliation is in. Danish still has to switch the engine's imports, map the
-   stub's lower-case actions, and remove the `src/contracts.py` shim.
-3. `check_submission.py --run` not confirmed: needs a Linux or WSL run.
-4. Practice values in two pipeline docstrings and two pipeline test files; kit scripts committed.
-5. No sealed holdout, no peak-memory figure, no brief PDF.
+1. Linking on unseen formats: no pseudonyms on the held-out seeds (`find_patient_identity_column`).
+2. Local A4 profile re-identification at 51.0%; not moved by the policy knobs.
+3. Practice values in two pipeline docstrings and two pipeline test files; kit scripts committed.
+4. Brief PDF is a draft for team review; the held-out data was written by the detector's author.
+5. Review and merge `feature/engine-wiring` into `main` (pull request, reviewed by Omkar).

@@ -28,10 +28,15 @@ Decisions that the official documents do not settle, or where they disagree.
    READY TO SUBMIT even before `main.py` existed. Only `--run` counts, and `--run` cannot pass on Windows
    when the path contains a space (POSIX quoting); it needs Linux or WSL.
 10. **`python` on this machine** resolves to a Store alias; checks were run with the project venv first on `PATH`.
-11. **One interface file.** The pipeline's `src/core/interfaces.py` stays as the single source of truth;
-   since Omkar's reconciliation (`e4727c2`) the engine's `src/contracts.py` is a re-export shim, to be
-   removed once the engine is ported. The remaining action-name and import-layout differences are listed
-   in `docs/INTERFACE_NOTES.md`.
+11. **One interface file.** `src/core/interfaces.py` is the only contract; the `src/contracts.py`
+   shim was removed when the engine moved to the pipeline's import layout (`a1d2478`).
+12. **Structured quasi-identifiers belong to the privacy layer when it recognises the column.** The
+   scoring rewards a kept or truthfully generalised village, PIN and age band, so the engine leaves
+   those whole-field values to `src/privacy` when `core.header_roles` knows the column, and redacts
+   them only when it does not (`docs/INTERFACE_NOTES.md`, span policy).
+13. **`check_submission.py --run` on WSL needs `python` on `PATH`.** The `run` line is
+   `python main.py ...`; WSL Ubuntu ships only `python3`, so a temporary link was put on `PATH`. The
+   event sandbox is assumed to provide `python`.
 14. **Merge conflict choices** (`eace4a7`): `raksha.toml` and `config/policy.yaml` kept the pipeline's
    versions because `main.py` reads them (team name stays `anaam`); `.gitignore` is the union.
 15. **Two test runners.** Pipeline tests use the standard library (`unittest`); engine tests use pytest

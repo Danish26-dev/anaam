@@ -57,4 +57,5 @@ practice data only).
 - **Not implemented:** encryption of intermediate data at rest, envelope keys, quarantine storage
   design, key rotation, and resource limits for hostile inputs (the 1,500-level JSON file is
   handled only by the dev bench's recursion limit and quarantine).
-- Development was done on Windows. Behaviour in the Linux sandbox is not yet verified.
+- Development was done on Windows. Under WSL Ubuntu the official `check_submission.py --run` passed
+  (secret never written, input unchanged, keyed output); an isolated-network run was not done.

@@ -1,73 +1,72 @@
 # Compliance matrix
 
-Status values: **DONE** (implemented and tested), **PARTIAL**, **NOT WIRED** (implemented, but `main.py`
-does not use it yet), **NOT MEASURED**, **FAIL**. "Pipeline" means Omkar's code, "engine" Danish's.
-Claims about the pipeline marked *(per pipeline README)* were measured by Omkar and not re-run by Danish.
-Nothing here is a claim about the hidden datasets.
+Status values: **DONE** (implemented and tested), **PARTIAL**, **NOT DONE**, **NOT MEASURED**.
+"Pipeline" means Omkar's code, "engine" Danish's. Measurements are on the practice data unless a row
+says otherwise (`docs/EVALUATION.md`). Nothing here is a claim about the hidden datasets.
 
 ## A. Environment and rules
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| No runtime network | pipeline: in-process socket/DNS guard (`src/core/network_guard.py`); engine: stdlib only, no network imports | static import audit (engine); guard *(per pipeline README)* | DONE. Not yet run in an isolated network namespace |
+| No runtime network | pipeline: in-process socket/DNS guard (`src/core/network_guard.py`); engine: stdlib only | static import audit; guard installed first in `main.py` | DONE. Not run in an isolated network namespace |
 | CPU-only, no models | both | `requirements.txt` has no packages; README "Declared models: None" | DONE |
-| No LLM / generative / large model | both | none imported | DONE |
-| Synthetic data only, nothing organiser-owned committed | `.gitignore`, `tools/audit/scan_repo.py` | `dev/`, truth, attacker files, outputs ignored | PARTIAL: the kit's three checker scripts are committed on `main` (see `INTERFACE_NOTES.md`) |
+| No LLM / generative / large model | both | none imported; `check_submission.py`: no LLM packages | DONE |
+| Nothing organiser-owned committed | `.gitignore`, `tools/audit/scan_repo.py` | `dev/`, truth, attacker files, outputs ignored | PARTIAL: the kit's three checker scripts are committed on `main` |
 | No hardcoded practice identities | engine: 0 identity hits; pipeline: hits in 2 docstrings and 2 test files | `scan_repo.py` | PARTIAL: pipeline files to be cleaned |
-| 2 CPUs / 4 GB / 15 min | | `main.py`: 200 files, exit 0; peak memory **not measured** by us | NOT MEASURED |
-| Linux, Python 3.10 | | developed on Windows, Python 3.12 | NOT MEASURED |
+| 2 CPUs / 4 GB / 15 min | | Linux: 16.5 s, 48.2 MB peak for 200 files | DONE (practice size) |
+| Linux, Python 3.10+ | | WSL Ubuntu, Python 3.12.3: `check_submission.py --run` READY TO SUBMIT | DONE (3.10 itself not tested) |
 
 ## B. Detection (20 points)
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| English, Hindi, Hinglish names; relatives | engine `names.py`, `identity_lexicon.py`, `transliteration.py` | `tests/engine/test_names.py` and others | DONE, **NOT WIRED** |
-| Phones, Aadhaar, ABHA, PAN, MRN/UHID, insurance | engine `identifiers.py` | `tests/engine/test_identifiers.py` | DONE, **NOT WIRED** |
-| Doses, `1-0-1`, vitals not mistaken for IDs; `C/O fever`, `Dr.` kept | engine `clinical.py`, `span_resolver.py` | `tests/engine/test_clinical.py`, `test_span_resolver.py` | DONE, **NOT WIRED** |
-| Hidden: file names, headers, keys, metadata, base64 | engine `engine.py`, `attachments.py`; pipeline renames phone / hospital-ID shaped path parts | `tests/engine/test_channels.py` | engine DONE, **NOT WIRED** |
-| Unseen formats and labels | engine `field_classifier.py` | chaos seeds dev-1..4 | PARTIAL: author-written test data only |
-| Released output today (`main.py` with the stub) | pipeline + stub | official `check_dev.py`: **73.9% of PII visible**, 4 of 4 canaries | **FAIL** until the engine is wired |
-| Engine alone (dev runner) | `tools/bench/run_bench.py` | official `check_dev.py`: 0.0% visible, 0 of 4 canaries | DONE (not the submission path) |
+| English, Hindi, Hinglish names; relatives | engine `names.py`, `identity_lexicon.py`, `transliteration.py` | `check_dev.py` via `main.py`: Latin, Devanagari, Hinglish 0.0% visible | DONE |
+| Phones, Aadhaar, ABHA, PAN, MRN/UHID, insurance | engine `identifiers.py` | every category 0 of N visible | DONE |
+| Doses, `1-0-1`, vitals not mistaken for IDs; `C/O fever`, `Dr.` kept | engine `clinical.py`, `span_resolver.py` | 4855 of 4855 medical values kept | DONE |
+| Hidden: file names, headers, keys, metadata, base64 | engine `engine.py`, `attachments.py`; wired in writers and `main.py` | every hiding place 0.0% visible | DONE |
+| Canaries | engine context rules | 0 of 4 found | DONE |
+| Unseen formats and labels | engine `field_classifier.py` | sealed holdout seeds: 1 of 826 visible | PARTIAL: author-written held-out data |
 
 ## C. Medical preservation (20 points)
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| Medicines, doses, frequencies, vitals, labs, diagnoses, procedures | engine `clinical*.py`; pipeline keeps values it does not touch | `main.py` (stub): 4855/4855; engine bench: 4855/4855 | DONE |
-| Exact stay intervals | pipeline `src/privacy/date_shift.py` | `tests/test_date_shift.py` *(pipeline)* | DONE *(per pipeline README)* |
-| Truthful age bands | pipeline `src/privacy/generalize.py` | `tests/test_json_generalize.py` *(pipeline)* | DONE *(per pipeline README)* |
+| Medicines, doses, frequencies, vitals, labs, diagnoses, procedures | engine `clinical*.py`; release gate blocks clinical loss | practice 4855/4855; holdout 302/302 | DONE |
+| Exact stay intervals | pipeline `date_shift.py`; engine dates shifted by the same per-record offset | `tests/test_date_shift.py`, `tests/engine/test_integration.py` | DONE |
+| Truthful age bands, village/PIN generalisation | pipeline `src/privacy/*` | `tests/test_json_generalize.py` | DONE *(pipeline tests)* |
 
 ## D. Identity consistency (15 points)
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| Blocking, conflict-aware scoring, constrained clustering, `patient: null` on doubt | pipeline `src/identity/*` | `tests/test_clustering.py` *(pipeline)* | implemented |
-| Real linking on practice data | needs engine `IdentityEvidence` | `main.py` (stub): precision 0, recall 0, because the stub returns empty evidence | **FAIL** until wired |
-| HMAC pseudonyms written inside records | pipeline `src/privacy/pseudonyms.py`, writers | `tests/test_pseudonyms.py` *(pipeline)* | DONE *(per pipeline README)* |
+| Blocking, conflict-aware scoring, constrained clustering | pipeline `src/identity/*` with engine `IdentityEvidence` | `check_dev.py`: precision 0.97, recall 0.84, F0.5 0.94, 1 wrong merge | DONE on practice data |
+| Linking on unseen formats | pipeline `find_patient_identity_column` | holdout: no pseudonyms issued | **NOT DONE** |
+| HMAC pseudonyms written inside records | pipeline `pseudonyms.py`, writers | A6: 0 of 48 invertible | DONE |
 
 ## E. Privacy against attacks (25 points)
 
-| Requirement | Where | Status |
-|---|---|---|
-| Per-patient date shifts, age bands, location and PIN generalisation | pipeline `src/privacy/*` | DONE *(per pipeline README)* |
-| Rare-condition handling | pipeline needs clinical risk flags from the engine | NOT DONE |
-| Local attacks A1, A3, A4, A5, A6, A7 | pipeline `tools/attack_lab/*` | implemented; not re-run by Danish |
+| Requirement | Where | Evidence | Status |
+|---|---|---|---|
+| Per-patient date shifts, age bands, location and PIN generalisation | pipeline `src/privacy/*` | A5 global shift not recoverable; A7 0 stable pseudonyms, 3.3% coincident dates | DONE |
+| Profile re-identification | pipeline privacy layer | local A4: 51.0% of profiles | **PARTIAL**: highest remaining risk |
+| Rare-condition handling | needs clinical risk flags | | NOT DONE |
+| Local attacks A1, A3, A4, A5, A6, A7 | pipeline `tools/attack_lab/*` | re-run on the wired release (EVALUATION section 5) | DONE (measured) |
 
 ## F. Output quality and validity (10 points)
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| Contract output, file accounting, quarantine | pipeline `main.py`, `src/export/*` | `main.py` on practice data: exit 0, 193 sanitized, 7 quarantined, `validate_output.py` CONTRACT OK | DONE |
-| Release gate (rescrub, quarantine, abort rules) | engine `src/verify/*` | `tests/engine/test_verify.py`; releases 194/194 of engine output, flags 174/175 raw PII files | DONE, **NOT WIRED** |
-| Valid FHIR with resolving references | pipeline `src/export/fhir_writer.py`; engine `structure.check_fhir_references` | | DONE *(per pipeline README)*; check NOT WIRED |
-| No PII in logs, temp files, errors | pipeline atomic publish and safe reason codes; engine returns codes only | `check_submission.py`: secret never written, input unchanged | DONE |
+| Contract output, file accounting, quarantine | pipeline `main.py`, `src/export/*` | exit 0, 193 sanitized, 7 quarantined, CONTRACT OK | DONE |
+| Release gate (rescrub, quarantine) | engine `src/verify/*`, called in `main.py` | 2 files re-scrubbed, 0 good files rejected | DONE |
+| Valid FHIR with resolving references | pipeline `fhir_writer.py`; gate checks references | gate passes every FHIR output | DONE |
+| No PII in logs, temp files, errors | atomic publish, safe reason codes, gate returns codes only | `check_submission.py`: secret never written, input unchanged | DONE |
 
 ## G. Speed and reliability (10 points)
 
 | Requirement | Status |
 |---|---|
-| Determinism, different secret changes output | DONE *(per pipeline README)*; `check_submission.py --run` could not confirm on Windows (see H) |
-| No crash on broken files | `main.py` quarantines 7 files and exits 0 on practice data |
+| Determinism; a different secret changes output | DONE: `check_submission.py --run` under Linux |
+| No crash on broken files | DONE: 7 quarantined, exit 0 |
 
 ## H. Submission checklist
 
@@ -75,8 +74,8 @@ Nothing here is a claim about the hidden datasets.
 |---|---|
 | Public repository separate from the kit | `https://github.com/Danish26-dev/anaam` |
 | `raksha.toml`, `requirements.txt`, `README.md`, `config/policy.yaml`, `main.py` | present |
-| `validate_output.py` prints CONTRACT OK on `main.py` output | DONE |
-| `check_submission.py --run` prints READY TO SUBMIT | NOT VERIFIED: on Windows the checker splits paths that contain a space and `main.py` exits 2. Needs a Linux or WSL run |
-| Detection engine wired into `main.py` | **NOT DONE**: the main blocker |
-| Sealed holdout written by someone other than the detector's author | NOT STARTED |
-| Two-page Project Brief PDF | NOT STARTED |
+| `validate_output.py` prints CONTRACT OK | DONE |
+| `check_submission.py --run` prints READY TO SUBMIT | DONE under WSL Ubuntu |
+| Detection engine wired into `main.py` | DONE (`feature/engine-wiring`, to be reviewed and merged) |
+| Sealed holdout | PARTIAL: written by the detector's author |
+| Two-page Project Brief PDF | draft at `docs/brief.pdf` (source `docs/BRIEF.md`); needs team review |
