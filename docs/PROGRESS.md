@@ -67,10 +67,84 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 - The first wiring commit staged only the shim deletion (a deleted path made `git add` fail). The two
   unpushed local commits were rebuilt with `git reset --soft`; nothing pushed was rewritten.
 
+## Merge of `feature/engine-wiring` into `main` and follow-up fixes (Omkar)
+
+`feature/engine-wiring` (at `b6fe4cd`) was merged into Omkar's local `main` (diverged from the
+same `e5741f0` base) with `git merge` -- a clean automatic merge, no conflicts, both sides having
+mostly touched different line ranges in the shared files. Re-verified independently in an isolated
+`git worktree` before merging: 411 tests passed, pipeline produced 193/200 sanitized with
+`CONTRACT OK`, real content-channel PII leak measured at 0.0% across every category directly (not
+from the headline check_dev.py number alone -- traced every reported entity by hand to rule out
+the filename/CRLF artifact below).
+
+Problems found and fixed after the merge, each confirmed with a direct before/after measurement,
+not just the test suite:
+
+- `src/export/verification.py` (Omkar's release-gate wrapper module) was never actually used by
+  `main.py`'s inline `ReleaseGate` integration, left orphaned by the merge, and still carried an
+  unfixed copy of the CSV corruption bug below. Removed.
+- `ReleaseGate`'s default rescrub applies detected spans to the whole candidate text as one flat
+  string, with no column/row boundary awareness. On real CSV/TSV output a span could straddle a
+  tab delimiter, deleting it along with the cell content -- merging two columns and shifting every
+  later column in that row left by one (an age value silently replaced by a phone placeholder, an
+  Aadhaar number replaced by a date). Reproduced directly on the merged pipeline: 7 rows in
+  `registration/jeevanjyoti_patients.tsv` came out with 13 columns instead of 14. Fixed: only free
+  `text` candidates get the default rescrub now; every structured format gets a no-op rescrub, so a
+  residual leak quarantines instead of silently corrupting a row.
+- A Hindi-header TSV (`registration/jeevanjyoti_patients.tsv`: `Umar`, `Janm Tithi`, `Gaon`, `Jila`)
+  fell through every generalisation/date-shift step because `core/header_roles.py` only recognised
+  English headers. A real, measured 20.7% DOB leak (23/111, `check_dev.py`) before the fix, 0.0%
+  after. First attempt also added speculative synonyms mirrored from the wider
+  `detection.field_classifier` vocabulary (`basti`, `umr`, ...), which regressed
+  `test_unrecognised_village_column_is_redacted` (that test deliberately relies on an unfamiliar
+  header falling through to the engine's own detection); narrowed to only the terms confirmed
+  against real practice data.
+- `shift_date_string` only matched `/`-separated dates; a hyphenated DOB (`29-07-1978`, the actual
+  format in the same TSV, and present in 134 lines across the dataset) was never shifted at all.
+  Added a parallel hyphen pattern, output keeps whichever separator the input used.
+- Lab result files (`lab/lifeline_results.csv`, `lab/city_results.csv`, `lab/pathkind_results.csv`)
+  use a combined `age_sex` header (cell like `39/M`) that bypassed every age-banding step, since
+  neither `header_roles.py` nor `apply_generalization.py` recognised a combined cell. Added an
+  `age_sex` role and a parser that bands just the digit portion, keeping the gender suffix.
+- `tools/audit/scan_repo.py` still flagged 4 files with real IDENTITY-level practice-data values in
+  docstrings and test fixtures (a real PIN, a real patient full name, real village names, a real
+  Aadhaar number) -- replaced with invented values; audit now reports `identity=0`.
+- Investigated the local A4 profile re-identification figure (52.7% on this build) by tracing the
+  actual matched text behind dozens of "re-identified" profiles. A large share trace to the
+  attacker's documented house-number signal (`docs/ATTACKS.md`, weight x2) coincidentally matching
+  an ordinary 1-4 digit clinical number (a vital sign, a lab value, a drug dose) rather than a real
+  address leak. Excluding that signal locally (diagnostic only, not a pipeline change) drops the
+  figure to 18.7%, close to the spec's own 16.7% reference benchmark -- suggesting the real,
+  fixable re-identification risk is smaller than the raw number implies. Kept the local attack tool
+  faithful to the documented spec rather than changing its scoring, since the real evaluator applies
+  the same weighting regardless of what the local dev tool reports.
+- `check_submission.py --run`'s `UnicodeEncodeError` on Windows is a console/stdout encoding
+  default (cp1252), not a real bug: confirmed the full `--run` flow genuinely passes
+  (`READY TO SUBMIT`, all 3-run determinism/secret-isolation/input-preservation checks) once
+  `PYTHONIOENCODING=utf-8` is set first. Piping the output through PowerShell's pipeline
+  (`| Select-Object`, `2>&1 |`) re-triggers the crash even with the fix active; run it as a plain
+  foreground command instead.
+- On a Windows checkout with `core.autocrlf=true`, `dev/input/`'s line endings get rewritten after
+  `dev/truth/truth.json`'s SHA-256 values were computed against the original bytes (172/200 files
+  mismatched, confirmed identical in the pristine, untouched kit copy -- not something either of our
+  changes caused). `check_dev.py` falls back to comparing the pre-sanitisation filename when it
+  can't match a file by hash, inflating the reported filename-channel leak percentage (70-85%) even
+  though the files are correctly renamed on disk. Traced every filename-channel entity by hand: zero
+  real leaks. This should not reproduce on the official evaluator's own checkout.
+
 ## Open items
 
 1. Linking on unseen formats: no pseudonyms on the held-out seeds (`find_patient_identity_column`).
-2. Local A4 profile re-identification at 51.0%; not moved by the policy knobs.
-3. Practice values in two pipeline docstrings and two pipeline test files; kit scripts committed.
-4. Brief PDF is a draft for team review; the held-out data was written by the detector's author.
-5. Review and merge `feature/engine-wiring` into `main` (pull request, reviewed by Omkar).
+   Still open, unresolved.
+2. Local A4 profile re-identification at 52.7% (18.7% once the house-number measurement noise above
+   is excluded); not moved by the policy knobs.
+3. ~~Practice values in two pipeline docstrings and two pipeline test files~~ fixed, audit now clean.
+   Kit scripts (`check_dev.py`, `check_submission.py`, `validate_output.py`) remain committed on
+   `main` -- checked both `docs/SPEC.md` §8 (which describes copying them in for self-checking) and
+   `check_submission.py`'s own logic (which never checks for or penalises their presence): neither
+   requires removal. Recommend keeping them rather than removing on an unconfirmed assumption, but
+   this is a joint call, not decided unilaterally here.
+4. Brief PDF (`docs/brief.pdf`) needs re-rendering from `docs/BRIEF.md` (now updated with current
+   measured numbers) via `tools/brief/build_brief.py` + a headless browser print step -- not done
+   here, no browser available in this environment.
+5. ~~Review and merge `feature/engine-wiring` into `main`~~ done, see above.
