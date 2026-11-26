@@ -36,6 +36,15 @@ def test_ward_in_an_address_is_not_clinical_loss():
     assert clinical_loss(before, after) == {}
 
 
+def test_patient_ids_and_hinglish_pt_are_not_lab_tests():
+    # "pt-422" is a FHIR patient id and "pt" is Hinglish for patient; "PT 14.2 sec" is a lab.
+    labs = lambda t: [s for s in detect_clinical(t) if s.category == c.LAB]  # noqa: E731
+    assert not labs('"id": "pt-422"')
+    assert not labs("pt ka BP 140/90 hai")
+    assert labs("PT 14.2 sec, INR 1.1")
+    assert labs("haemoglobin 10.2 g/dL")
+
+
 def test_uuid_prefix_is_not_a_dose():
     text = "urn:uuid:81cc-7d1e-4b2a-9c3d"
     assert not [s for s in detect_clinical(text) if s.category == c.DOSE]

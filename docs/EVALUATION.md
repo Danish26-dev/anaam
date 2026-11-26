@@ -93,16 +93,18 @@ publication (branch `feature/engine-wiring`). Practice data, `RAKSHA_SECRET=prac
 The engine was developed against this practice data, so these numbers are an upper bound. Section 6
 is the honest generalisation test.
 
-Local attack lab (`tools/attack_lab`, approximations of `ATTACKS.md`, not official scores):
+Local attack lab (`tools/attack_lab`, approximations of `ATTACKS.md`, not official scores), produced
+by `tools/studio/evidence.py`. The baseline is an unprotected copy of the same input files with the
+same record locators, attacked in the same way.
 
-| Attack | Result | Note |
-|---|---|---|
-| A1 direct exposure | 11 of 240 registry people | all 11 are Aadhaar last-4 digits appearing inside other numbers or as a standalone 4-digit value; no full name or phone survives |
-| A3 record linkage | mean top-candidate share 0.615 | |
-| A4 profile re-identification | 77 of 151 profiles (51.0%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year age bands, so the policy knobs are not the cause |
-| A5 targeted | 11 of 18 facts; global shift not recoverable | |
-| A6 pseudonym inversion | 0 of 48 | keyed HMAC |
-| A7 cross-release | 0 stable pseudonyms; 27 of 817 date pairs (3.3%) coincide | |
+| Attack | Unprotected copy | Anaam release | Note |
+|---|---|---|---|
+| A1 direct exposure | 81 of 240 (33.8%) | 11 of 240 (4.6%) | the 11 are all Aadhaar last-4 digits found inside other numbers or as a standalone 4-digit value; no full name or phone survives |
+| A3 record linkage (mean top-candidate share) | 0.674 | 0.615 | |
+| A4 profile re-identification | 90 of 156 (57.7%) | 77 of 151 (51.0%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year bands |
+| A5 targeted facts found | 5 of 18 (27.8%); global shift recoverable | **11 of 18 (61.1%)**; global shift not recoverable | higher than the baseline: linked pseudonyms let the attacker pool known facts across a patient's records. Needs work in the privacy layer |
+| A6 pseudonym inversion | n/a | 0 of 48 | keyed HMAC |
+| A7 cross-release | n/a | 0 stable pseudonyms; 3 of 817 date pairs (0.4%) coincide | a second run with a random secret (an earlier run measured 3.3%) |
 
 ## 6. Held-out test (sealed chaos seeds, no tuning afterwards)
 
@@ -118,11 +120,17 @@ The generator was written by the engine's author, so this is a weaker test than 
 | strict token recall (`score_dev.py`, weighted macro) | 0.998 (one village missed) | 1.000 |
 | canaries | 0 of 3 | 0 of 3 |
 | medical values kept | 145 of 145 | 157 of 157 |
-| patient linking | **0 (no pseudonyms issued)** | **0 (no pseudonyms issued)** |
+| records carrying a pseudonym | text 24/34, JSON 12/14, **CSV 0/8, TSV 0/8** | text 28/38, JSON 12/14, **CSV 0/8, TSV 0/8** |
+| linking accuracy | **not measurable** | **not measurable** |
 
-Linking on unseen formats is the main generalisation gap: identity resolution depends on
-`core.header_roles` recognising a patient-identity column, and the chaos headers are not in its
-table. Detection carried over; linking did not. Recorded, not tuned against.
+Correction (found while building the Release Studio): an earlier version of this section reported
+"0 (no pseudonyms issued)". That 0.00 came from `check_dev.py`, which scores only units marked
+`link: required`, and the chaos generator writes no patient labels at all (`patient: null` on every
+unit). Linking accuracy on these seeds is therefore unmeasured, not zero. What the output does show:
+text and JSON records receive pseudonyms, while CSV/TSV records with unseen identity headers receive
+none, because `core.header_roles.find_patient_identity_column` does not recognise those columns (the
+engine's field classifier does: `NAME_PATIENT`, `MRN`). The generator needs patient labels before
+linking on unseen formats can be measured.
 
 ## 7. Official submission check
 

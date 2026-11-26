@@ -40,7 +40,7 @@ says otherwise (`docs/EVALUATION.md`). Nothing here is a claim about the hidden 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
 | Blocking, conflict-aware scoring, constrained clustering | pipeline `src/identity/*` with engine `IdentityEvidence` | `check_dev.py`: precision 0.97, recall 0.84, F0.5 0.94, 1 wrong merge | DONE on practice data |
-| Linking on unseen formats | pipeline `find_patient_identity_column` | holdout: no pseudonyms issued | **NOT DONE** |
+| Linking on unseen formats | pipeline `find_patient_identity_column` | holdout: CSV/TSV 0 of 32 records pseudonymised; accuracy not measurable (no patient labels) | **PARTIAL** |
 | HMAC pseudonyms written inside records | pipeline `pseudonyms.py`, writers | A6: 0 of 48 invertible | DONE |
 
 ## E. Privacy against attacks (25 points)

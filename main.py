@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Anaam: Secret Wards Track 3 submission entry point.
 
-Owned by Omkar (pipeline backbone). Detection/verification (src/detection, src/verify) are
-Danish's scope; this file currently calls the stable façade in `src/detection/api.py`,
-which delegates to a temporary regex stub until the real modules are integrated. Danish
-can replace the façade's function bodies without changing this pipeline or its writers.
+Owned by Omkar (pipeline backbone). Detection and verification (src/detection, src/verify)
+are Danish's scope. This file calls the detection engine through `src/detection/api.py`
+(harvest over all files, then per-record detection and identity evidence) and runs the
+release gate (`src/verify/release.py`) on every file before publication. Call order and
+span policy: docs/INTERFACE_NOTES.md.
 
 Usage: python main.py --input <input dir> --output <empty output dir>
 Standard library only, Python 3.10+. RAKSHA_SECRET must be set in the environment.

@@ -24,21 +24,29 @@ Danish's detection engine is wired in through `src/detection/api.py`. It provide
 
 ## Run
 
+The official checkers ship with the Team Kit and are not copied into this repository. The commands
+below assume the kit is cloned next to this repository as `../Secret-Wards-ToolKit` (set `KIT` to
+another path if not).
+
 PowerShell:
 
 ```powershell
+$KIT = "..\Secret-Wards-ToolKit"
 $env:RAKSHA_SECRET = "practice"
-python main.py --input dev\input --output my_output
-python validate_output.py --input dev\input --output my_output
-python check_dev.py --output my_output
+python main.py --input $KIT\dev\input --output my_output
+python $KIT\validate_output.py --input $KIT\dev\input --output my_output
+python $KIT\check_dev.py --output my_output
+python $KIT\check_submission.py --repo . --run   # Linux or WSL; see docs/EVALUATION.md
 ```
 
 Linux/macOS:
 
 ```bash
-RAKSHA_SECRET=practice python main.py --input dev/input --output my_output
-python validate_output.py --input dev/input --output my_output
-python check_dev.py --output my_output
+KIT=../Secret-Wards-ToolKit
+RAKSHA_SECRET=practice python main.py --input $KIT/dev/input --output my_output
+python3 $KIT/validate_output.py --input $KIT/dev/input --output my_output
+python3 $KIT/check_dev.py --output my_output
+python3 $KIT/check_submission.py --repo . --run
 ```
 
 The output directory must be empty or absent. Anaam never modifies the input tree.
@@ -234,17 +242,49 @@ Implemented by Danish in `src/detection/` and `src/verify/`, with 335 tests in `
 | `attachments.py`, `engine.py` | base64, `\u`, percent and HTML-entity payloads decoded, scrubbed and re-encoded; file names, CSV headers and JSON keys renamed only on strong evidence |
 | `src/verify/` | independent release gate: known patient values (including inside payloads), residual detection, clinical loss, CSV/JSON shape, FHIR references, pseudonym presence; rescrub once, then quarantine; abort only on release-level breakage; findings carry codes, never values |
 
-Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible, all medical values kept, but no patients linked. The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
+Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible and all medical values kept. Linking accuracy there is not measured (the generator writes no patient labels), and CSV/TSV records with unseen identity headers received no pseudonym. The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
 
 Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
 
 ## Known limitations
 - Profile re-identification (local A4) is 51% of practice profiles. Raising `min_group_size` to 10 or 20 or widening age bands to 10 years did not change it, so the remaining risk comes from evidence the privacy layer does not yet generalise (likely dates, diagnoses and hospital combined).
-- On unseen formats, no patients are linked: identity resolution needs `core.header_roles` to recognise a patient-identity column. Detection carried over to unseen formats; linking did not.
+- On unseen formats, CSV/TSV records get no pseudonym when `core.header_roles` does not recognise the patient-identity column (0 of 32 held-out CSV/TSV records; text and JSON records were pseudonymised). Linking accuracy on unseen formats is not measured yet, because the chaos generator writes no patient labels.
 - Record-level rare-condition suppression depends on clinical risk flags from Danish's side and is not implemented.
 - Multi-patient FHIR Bundles are quarantined rather than partitioned.
 - FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource type) are not passed through O10's age/village/PIN generalization; only CSV and JSON records are.
 - `report.json` shows `peak_rss_mb: 0.0` on Windows (no `resource` module); on Linux it is measured (47 MB on the practice data).
+
+## Release Studio (demo frontend)
+
+A local product interface for the demo: a landing page and a seven-screen workspace (Overview, New Release,
+Data Inventory, Clinical Integrity, Identity Explorer, Attack Replay, Release Assurance). It is optional:
+the evaluator runs only `main.py`, and nothing in the Studio changes the engine.
+
+```bash
+cd frontend && npm install && npm run build && cd ..          # once; needs Node 18+ (dev time only)
+python tools/studio/evidence.py --holdout                     # optional: measured practice evidence
+python tools/studio/server.py                                 # http://127.0.0.1:8765
+```
+
+- `tools/studio/server.py` (standard library) serves the built frontend and runs releases by calling
+  the unchanged `main.py` as a subprocess. It binds to 127.0.0.1 only and rejects non-localhost Host
+  headers, sends no CORS headers and sets a strict CSP. Uploaded inputs are deleted after each run,
+  also on failure, and only released output, `report.json` and `records.jsonl` are served.
+  `RAKSHA_SECRET` comes from its environment (or a random per-session value) and is never returned
+  or logged.
+- After `main.py`, the server runs the organiser's `validate_output.py` (from the kit folder), an
+  independent residual re-scan, structure checks, a clinical before/after count and the release-wide
+  check `verify.release.ReleaseGate.verify_release`. A release shows VERIFIED only if every check ran
+  and passed.
+- `tools/studio/evidence.py` measures the practice data with the organiser's checkers and the attack
+  lab (also against an unprotected copy as the baseline) and writes counts only to
+  `out/studio/evidence.json`, which is git-ignored.
+- `tools/studio/record_demo.py` builds the **synthetic** demo workspace (`tools/studio/demo_data.py`:
+  three fictional hospitals, five invented patients), runs the real CLI on it and records the
+  result as `frontend/src/fixtures/demo-release.json`. Every screen labels its source: SYNTHETIC
+  DEMO, PRACTICE EVALUATION or LOCAL RELEASE.
+- The frontend makes no third-party requests. It uses local system fonts, no analytics and no
+  browser storage. File names typed by the user stay in the tab's memory.
 
 ## Submission configuration
 

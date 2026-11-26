@@ -18,11 +18,11 @@ class FindVillageAndDistrictTests(unittest.TestCase):
     def test_finds_nested_village_and_district(self):
         record = {
             "age": 51,
-            "address": {"village": "Kotpura", "tehsil": "Nandgaon", "district": "Alirampur", "pin": "110092"},
+            "address": {"village": "Tilakpura", "tehsil": "Bilgram", "district": "Hardoi", "pin": "248117"},
         }
         village, district = find_village_and_district(record)
-        self.assertEqual(village, "Kotpura")
-        self.assertEqual(district, "Alirampur")
+        self.assertEqual(village, "Tilakpura")
+        self.assertEqual(district, "Hardoi")
 
     def test_returns_none_when_absent(self):
         village, district = find_village_and_district({"age": 30})
@@ -34,13 +34,13 @@ class CollectVillageHierarchyFactsTests(unittest.TestCase):
     def test_collects_facts_from_a_list_of_records(self):
         data = {
             "patients": [
-                {"address": {"village": "Kotpura", "tehsil": "Nandgaon", "district": "Alirampur"}},
-                {"address": {"village": "Devgarh", "district": "Rampur"}},
+                {"address": {"village": "Tilakpura", "tehsil": "Bilgram", "district": "Hardoi"}},
+                {"address": {"village": "Sonbarsa", "district": "Sitapur"}},
             ]
         }
         facts = collect_village_hierarchy_facts(data)
-        self.assertIn(("Kotpura", "Nandgaon", "Alirampur"), facts)
-        self.assertIn(("Devgarh", None, "Rampur"), facts)
+        self.assertIn(("Tilakpura", "Bilgram", "Hardoi"), facts)
+        self.assertIn(("Sonbarsa", None, "Sitapur"), facts)
 
 
 class GeneralizeJsonRecordTests(unittest.TestCase):
@@ -68,11 +68,11 @@ class GeneralizeJsonRecordTests(unittest.TestCase):
 
     def test_village_is_generalized_to_tehsil_when_mapping_known(self):
         hierarchy = VillageHierarchy()
-        hierarchy.learn("Kotpura", "Nandgaon", "Alirampur")
+        hierarchy.learn("Tilakpura", "Bilgram", "Hardoi")
         plan = ProfilePrivacyPlan(pseudonym="p1", age_band_years=5, village_level="tehsil", pin_keep_digits=3)
-        record = {"address": {"village": "Kotpura"}}
+        record = {"address": {"village": "Tilakpura"}}
         generalized, transformations = generalize_json_record(record, plan, hierarchy)
-        self.assertEqual(generalized["address"]["village"], "Nandgaon")
+        self.assertEqual(generalized["address"]["village"], "Bilgram")
         self.assertEqual(transformations[0].path, "address/village")
 
     def test_village_suppresses_to_empty_when_no_mapping_known(self):
@@ -84,16 +84,16 @@ class GeneralizeJsonRecordTests(unittest.TestCase):
 
     def test_pin_is_truncated_to_prefix(self):
         plan = ProfilePrivacyPlan(pseudonym="p1", age_band_years=5, village_level="tehsil", pin_keep_digits=3)
-        record = {"address": {"pin": "110092"}}
+        record = {"address": {"pin": "248117"}}
         generalized, transformations = generalize_json_record(record, plan, VillageHierarchy())
-        self.assertEqual(generalized["address"]["pin"], "110")
+        self.assertEqual(generalized["address"]["pin"], "248")
         self.assertEqual(transformations[0].action, "generalize")
 
     def test_suppress_level_blanks_village_tehsil_district_and_pin(self):
         plan = ProfilePrivacyPlan(pseudonym="p1", age_band_years=5, village_level="suppress", pin_keep_digits=3)
         hierarchy = VillageHierarchy()
-        hierarchy.learn("Kotpura", "Nandgaon", "Alirampur")
-        record = {"address": {"village": "Kotpura", "tehsil": "Nandgaon", "district": "Alirampur", "pin": "110092"}}
+        hierarchy.learn("Tilakpura", "Bilgram", "Hardoi")
+        record = {"address": {"village": "Tilakpura", "tehsil": "Bilgram", "district": "Hardoi", "pin": "248117"}}
         generalized, _ = generalize_json_record(record, plan, hierarchy)
         self.assertEqual(generalized["address"]["village"], "")
         self.assertEqual(generalized["address"]["tehsil"], "")
@@ -102,10 +102,10 @@ class GeneralizeJsonRecordTests(unittest.TestCase):
 
     def test_original_record_is_not_mutated(self):
         plan = ProfilePrivacyPlan(pseudonym="p1", age_band_years=5, village_level="tehsil", pin_keep_digits=3)
-        record = {"age": 51, "address": {"pin": "110092"}}
+        record = {"age": 51, "address": {"pin": "248117"}}
         generalize_json_record(record, plan, VillageHierarchy())
         self.assertEqual(record["age"], 51)
-        self.assertEqual(record["address"]["pin"], "110092")
+        self.assertEqual(record["address"]["pin"], "248117")
 
     def test_non_quasi_identifier_fields_pass_through_unchanged(self):
         plan = ProfilePrivacyPlan(pseudonym="p1", age_band_years=5, village_level="tehsil", pin_keep_digits=3)

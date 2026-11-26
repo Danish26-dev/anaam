@@ -134,17 +134,27 @@ not just the test suite:
 
 ## Open items
 
-1. Linking on unseen formats: no pseudonyms on the held-out seeds (`find_patient_identity_column`).
-   Still open, unresolved.
+1. Linking on unseen formats: held-out CSV/TSV records get no pseudonym
+   (`find_patient_identity_column` doesn't recognise those headers, though the engine's field
+   classifier does: `NAME_PATIENT`, `MRN`). Linking accuracy there is unmeasured, not failing --
+   an earlier "no pseudonyms" claim was itself a measurement artefact (`check_dev.py` only scores
+   units marked `link: required`, and the chaos generator writes no patient labels at all; see
+   `EVALUATION.md` §6). Still open, unresolved.
 2. Local A4 profile re-identification at 52.7% (18.7% once the house-number measurement noise above
-   is excluded); not moved by the policy knobs.
-3. ~~Practice values in two pipeline docstrings and two pipeline test files~~ fixed, audit now clean.
-   Kit scripts (`check_dev.py`, `check_submission.py`, `validate_output.py`) remain committed on
-   `main` -- checked both `docs/SPEC.md` §8 (which describes copying them in for self-checking) and
-   `check_submission.py`'s own logic (which never checks for or penalises their presence): neither
-   requires removal. Recommend keeping them rather than removing on an unconfirmed assumption, but
-   this is a joint call, not decided unilaterally here.
-4. Brief PDF (`docs/brief.pdf`) needs re-rendering from `docs/BRIEF.md` (now updated with current
-   measured numbers) via `tools/brief/build_brief.py` + a headless browser print step -- not done
-   here, no browser available in this environment.
+   is excluded); not moved by the policy knobs. Related: A5 shows linked pseudonyms let an attacker
+   pool known facts across a patient's records more effectively than on an unprotected copy (11/18
+   vs 5/18) -- a real adverse effect of linking that needs its own fix in the privacy layer.
+3. ~~Practice values in two pipeline docstrings and two pipeline test files~~ fixed, audit now clean
+   (`identity=0` on both sides' independent fixes). Kit scripts (`check_dev.py`,
+   `check_submission.py`, `validate_output.py`) were removed from `main` in the Release Studio
+   merge; `docs/SPEC.md` §8 describes copying them back in locally for self-checking, so this
+   does not block using them -- just means they are not committed to the submission repo itself.
+4. Brief PDF (`docs/brief.pdf`) re-rendered with current measured numbers as part of the Release
+   Studio merge.
 5. ~~Review and merge `feature/engine-wiring` into `main`~~ done, see above.
+6. Reconcile this log's own numbers against `EVALUATION.md`: linking recall was measured at 0.84 on
+   the engine-wiring branch directly and at 0.77 on Omkar's post-merge build with the CSV
+   rescrub/Hindi-header/age_sex fixes applied -- likely a real difference from those fixes changing
+   which files quarantine (a quarantined file's records lose linking credit), not a measurement
+   error on either side. Worth a joint re-run on the same exact commit to confirm before citing
+   either number as final in the brief.

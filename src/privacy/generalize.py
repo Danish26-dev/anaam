@@ -23,7 +23,7 @@ def age_band(age: int, band_years: int = 5, top_code: int = TOP_CODE_AGE) -> str
 
 
 def pin_to_prefix(pin: str, keep_digits: int = 3) -> str:
-    """Reduce a 6-digit PIN to its leading digits (region-level), e.g. "110092" -> "110"."""
+    """Reduce a 6-digit PIN to its leading digits (region-level), e.g. "248117" -> "248"."""
     digits = "".join(ch for ch in pin if ch.isdigit())
     return digits[:keep_digits] if digits else ""
 

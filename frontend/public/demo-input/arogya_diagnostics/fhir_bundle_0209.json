@@ -1,0 +1,81 @@
+{
+  "resourceType": "Bundle",
+  "type": "document",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:5f0c2a9e-0b7d-4a51-9e1f-3c6d2b8a7e10",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "pt-422",
+        "identifier": [
+          {
+            "system": "urn:sahyog:uhid",
+            "value": "SHY-2026-00422"
+          }
+        ],
+        "name": [
+          {
+            "text": "Leela Domnikar"
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1953-05-30",
+        "telecom": [
+          {
+            "system": "phone",
+            "value": "9452870631"
+          }
+        ],
+        "address": [
+          {
+            "text": "Chandanpura, Unnao 209801"
+          }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:9a6d1c44-2f3e-4b8a-8c1d-7e5f4a3b2c19",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-1",
+        "subject": {
+          "reference": "urn:uuid:5f0c2a9e-0b7d-4a51-9e1f-3c6d2b8a7e10"
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10",
+              "code": "N18.3"
+            }
+          ],
+          "text": "Chronic kidney disease, stage 3"
+        },
+        "recordedDate": "2026-02-09"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:c2b7e8f1-6a4d-4e3b-9f2a-1d8c7b6a5e43",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-1",
+        "status": "final",
+        "subject": {
+          "reference": "urn:uuid:5f0c2a9e-0b7d-4a51-9e1f-3c6d2b8a7e10"
+        },
+        "code": {
+          "text": "Serum creatinine"
+        },
+        "valueQuantity": {
+          "value": 1.9,
+          "unit": "mg/dL"
+        },
+        "effectiveDateTime": "2026-02-09T08:30:00+05:30",
+        "note": [
+          {
+            "text": "Sample collected at home visit. Contact daughter-in-law on 9452870631."
+          }
+        ]
+      }
+    }
+  ]
+}

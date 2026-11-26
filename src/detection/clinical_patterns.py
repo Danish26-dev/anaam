@@ -40,12 +40,14 @@ VITAL = re.compile(
     r"|\b(?:Weight|Wt|weight)\s*[:\-]?\s*\d{1,3}(?:\.\d)?\s?kg"
     r"|\bबुखार\s*\d{2,3}"
 )
-LAB = re.compile(
-    rf"\b(?:{_alt(lx.LAB_TESTS)})\b\s*[:\-=]?\s*{_NUM}(?:\s?(?:{_LAB_UNIT}))?",
-    re.IGNORECASE,
-)
+# Short all-caps test abbreviations match case-sensitively: lower-case "pt" is Hinglish for
+# patient ("pt ka BP") and "pt-422" is a FHIR patient id, not prothrombin time.
+_LAB_ABBR = [t for t in lx.LAB_TESTS if t.isupper() and len(t) <= 5]
+_LAB_WORDS = [t for t in lx.LAB_TESTS if t not in _LAB_ABBR]
+_LAB_TEST = rf"(?:(?i:{_alt(_LAB_WORDS)})|{_alt(_LAB_ABBR)})"
+LAB = re.compile(rf"\b{_LAB_TEST}\b\s*[:\-=]?\s*{_NUM}(?:\s?(?i:{_LAB_UNIT}))?")
 LAB_GENERIC = re.compile(rf"\b[A-Za-z][A-Za-z ]{{2,30}}?\s{_NUM}\s?(?:{_LAB_UNIT})(?![A-Za-z])")
-LAB_NAME = re.compile(rf"\b(?:{_alt(lx.LAB_TESTS)})\b", re.IGNORECASE)
+LAB_NAME = re.compile(rf"\b{_LAB_TEST}\b")
 LAB_RANGE_CTX = re.compile(
     rf"(?:range|ref\.?|normal|bio\.? ref\.?)\s*[:\-]?\s*({_NUM}\s?-\s?{_NUM})", re.IGNORECASE)
 RANGE_VALUE = re.compile(rf"^\s*{_NUM}\s?-\s?{_NUM}\s*$")
