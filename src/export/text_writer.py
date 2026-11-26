@@ -14,6 +14,7 @@ from privacy.date_shift import shift_date_string
 # strict, unambiguous numeric forms the practice dataset actually uses in free text
 # (discharge notes, prescriptions, nursing notes).
 _FREE_TEXT_DMY_RE = re.compile(r"\b\d{1,2}/\d{1,2}/\d{2}(?:\d{2})?\b")
+_FREE_TEXT_DMY_HYPHEN_RE = re.compile(r"\b\d{1,2}-\d{1,2}-\d{2}(?:\d{2})?\b")
 _FREE_TEXT_ISO_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
@@ -30,8 +31,12 @@ def _shift_free_text_dates(text: str, offset_days: int) -> tuple[str, int]:
         shifted_count += 1
         return new_value
 
-    text = _FREE_TEXT_DMY_RE.sub(_replace, text)
+    # ISO (YYYY-MM-DD) runs before the hyphenated DMY pattern so a 4-digit leading
+    # component is always treated as a year, never misread as a 2-digit day/month by
+    # the DMY-hyphen pattern re-matching whatever the ISO substitution left behind.
     text = _FREE_TEXT_ISO_RE.sub(_replace, text)
+    text = _FREE_TEXT_DMY_RE.sub(_replace, text)
+    text = _FREE_TEXT_DMY_HYPHEN_RE.sub(_replace, text)
     return text, shifted_count
 
 
