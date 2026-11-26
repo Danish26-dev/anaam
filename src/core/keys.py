@@ -43,6 +43,14 @@ class KeySet:
     def __str__(self) -> str:
         return "KeySet(***)"
 
+    def secret_text(self) -> str:
+        """The one legitimate internal use of the raw secret outside this module: the
+        release verifier's "the secret itself must never appear in any output" check
+        (ReleaseGate(secret=...)) needs the actual value to search for, not a derived
+        subkey. Never print, log, or persist what this returns.
+        """
+        return self._secret.decode("utf-8")
+
 
 def load_keyset(env: dict | None = None) -> KeySet:
     """Read RAKSHA_SECRET from the environment and derive the KeySet.
