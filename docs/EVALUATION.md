@@ -100,11 +100,11 @@ same record locators, attacked in the same way.
 | Attack | Unprotected copy | Anaam release | Note |
 |---|---|---|---|
 | A1 direct exposure | 81 of 240 (33.8%) | 11 of 240 (4.6%) | the 11 are all Aadhaar last-4 digits found inside other numbers or as a standalone 4-digit value; no full name or phone survives |
-| A3 record linkage (mean top-candidate share) | 0.674 | 0.615 | |
-| A4 profile re-identification | 90 of 156 (57.7%) | 77 of 151 (51.0%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year bands |
+| A3 record linkage | 708 of 817 records with a registry candidate; mean top-candidate share 0.674 | 301 of 817; 0.683 | after the Hindi-header and age_sex generalisation (Omkar): far fewer records can be matched at all; confidence on those that can is about the same |
+| A4 profile re-identification | 90 of 156 (57.7%) | 78 of 151 (51.7%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year bands |
 | A5 targeted facts found | 5 of 18 (27.8%); global shift recoverable | **11 of 18 (61.1%)**; global shift not recoverable | higher than the baseline: linked pseudonyms let the attacker pool known facts across a patient's records. Needs work in the privacy layer |
 | A6 pseudonym inversion | n/a | 0 of 48 | keyed HMAC |
-| A7 cross-release | n/a | 0 stable pseudonyms; 3 of 817 date pairs (0.4%) coincide | a second run with a random secret (an earlier run measured 3.3%) |
+| A7 cross-release | n/a | 0 stable pseudonyms; 0 of 817 date pairs coincide | a second run with a random secret (earlier runs measured 0.4% and 3.3%: coincidence varies with the secret) |
 
 ## 6. Held-out test (sealed chaos seeds, no tuning afterwards)
 

@@ -16,10 +16,18 @@ guessing on ambiguous columns -- that guessing is explicitly D5's job, not O10's
 """
 from __future__ import annotations
 
+import re
+
 from core.header_roles import role_for_header
 from core.interfaces import FieldNode
 from .generalize import VillageHierarchy, age_band
 from .profile_policy import ProfilePrivacyPlan, apply_plan_to_pin, apply_plan_to_village
+
+# "39/M", "65/F", "39 / M": a combined age+gender cell (real header: "age_sex", seen in
+# lab/lifeline_results.csv, lab/city_results.csv, lab/pathkind_results.csv). Keeps
+# whatever separator and surrounding text the cell uses; only the digit run before the
+# separator is treated as the age.
+_AGE_SEX_RE = re.compile(r"^(\d{1,3})(\s*/\s*)(.*)$")
 
 
 def heuristic_role_hint(path: str) -> str | None:
@@ -32,7 +40,7 @@ def heuristic_role_hint(path: str) -> str | None:
         return None
     header = path[4:]
     role = role_for_header(header)
-    return role if role in ("age", "village", "pin") else None
+    return role if role in ("age", "age_sex", "village", "pin") else None
 
 
 def generalize_field_value(
@@ -48,6 +56,14 @@ def generalize_field_value(
 
     if role == "age" and isinstance(value, str) and value.strip().isdigit():
         return age_band(int(value.strip()), band_years=plan.age_band_years), True
+
+    if role == "age_sex" and isinstance(value, str):
+        m = _AGE_SEX_RE.match(value.strip())
+        if m:
+            age_text, sep, rest = m.groups()
+            banded = age_band(int(age_text), band_years=plan.age_band_years)
+            return f"{banded}{sep}{rest}", True
+        return value, False
 
     if role == "village" and isinstance(value, str) and value.strip():
         # apply_plan_to_village itself returns None both for an unknown mapping AND for

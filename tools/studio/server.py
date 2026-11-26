@@ -18,7 +18,9 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import csv
 import datetime as dt
+import io
 import hashlib
 import json
 import os
@@ -132,7 +134,17 @@ def assurance(inp: Path, out: Path, pipeline_ok: bool) -> dict:
             entry["records"] = sum(1 for r in records if r["file"] == f["output"])
             text = (out / f["output"]).read_text(encoding="utf-8", errors="replace")
             fmt = PurePosixPath(f["output"]).suffix.lower().lstrip(".")
-            findings = leaks.scan_residual(text, structured=fmt in ("csv", "tsv", "json"))
+            if fmt in ("csv", "tsv") and not text.lstrip().startswith(("{", "[")):
+                # cell by cell, header labels ignoring weak guesses: the same rule as the release gate
+                first = text.split("\n", 1)[0]
+                delim = "\t" if fmt == "tsv" or first.count("\t") > first.count(",") else ","
+                findings = []
+                for i, row in enumerate(csv.reader(io.StringIO(text, newline=""), delimiter=delim)):
+                    for cell in row:
+                        if cell.strip():
+                            findings += leaks.scan_residual(cell, structured=True, header_len=len(cell) if i == 0 else 0)
+            else:
+                findings = leaks.scan_residual(text, structured=fmt in ("csv", "tsv", "json"))
             entry["residual"] = len(findings)
             residual.update(x.category for x in findings)
             codes = st.check_utf8(text.encode("utf-8", errors="surrogatepass"))

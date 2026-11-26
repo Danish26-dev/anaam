@@ -2,12 +2,12 @@
   "id": "synthetic-demo",
   "source": "demo",
   "label": "Synthetic demo workspace: 3 fictional hospitals, 5 invented patients",
-  "created_at": "2026-11-26T20:37:19+00:00",
+  "created_at": "2026-11-26T22:11:33+00:00",
   "status": "complete",
   "files_uploaded": 7,
   "pipeline": {
     "exit_code": 0,
-    "seconds": 0.57,
+    "seconds": 1.31,
     "message": "files 7 sanitized 6 quarantined 1 records 16"
   },
   "assurance": {
@@ -241,7 +241,7 @@
       "records_quarantined": 0
     },
     "timing": {
-      "seconds": 0.19
+      "seconds": 0.55
     },
     "resources": {
       "peak_rss_mb": 0.0

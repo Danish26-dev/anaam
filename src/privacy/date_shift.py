@@ -37,6 +37,7 @@ def shift_date(value: dt.date, offset_days: int) -> dt.date | None:
 
 
 _SLASH_DATE_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$")
+_HYPHEN_DATE_RE = re.compile(r"^(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})$")
 _ISO_DATETIME_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})([T ].*)?$")
 
 
@@ -77,10 +78,12 @@ def shift_date_string(value: str, offset_days: int, date_hint: str = "dmy") -> s
     """Shift a numeric date while preserving its original syntax.
 
     Supported forms are ISO ``YYYY-MM-DD`` (with an optional time/timezone suffix),
-    ``DD/MM/YYYY``, ``DD/MM/YY``, ``MM/DD/YYYY`` and ``MM/DD/YY``. Slash dates use the
-    ``date_hint`` value ``"dmy"`` or ``"mdy"``. ``"auto"`` accepts only an
-    unambiguous slash date (one component greater than 12); ambiguous values return
-    ``None`` rather than being guessed.
+    ``DD/MM/YYYY``, ``DD/MM/YY``, ``MM/DD/YYYY``, ``MM/DD/YY``, and the same four forms
+    with ``-`` instead of ``/`` (e.g. ``DD-MM-YYYY``, common in Indian hospital exports
+    like a hyphenated "Janm Tithi"/DOB column). The output keeps whichever separator the
+    input used. Separated dates use the ``date_hint`` value ``"dmy"`` or ``"mdy"``.
+    ``"auto"`` accepts only an unambiguous value (one component greater than 12);
+    ambiguous values return ``None`` rather than being guessed.
     """
     value = value.strip()
 
@@ -95,11 +98,12 @@ def shift_date_string(value: str, offset_days: int, date_hint: str = "dmy") -> s
             return None
         return f"{shifted.year:04d}-{shifted.month:02d}-{shifted.day:02d}{rest or ''}"
 
-    slash_match = _SLASH_DATE_RE.match(value)
-    if not slash_match:
+    separated_match = _SLASH_DATE_RE.match(value) or _HYPHEN_DATE_RE.match(value)
+    if not separated_match:
         return None
+    separator = "/" if _SLASH_DATE_RE.match(value) else "-"
 
-    first_text, second_text, year_text = slash_match.groups()
+    first_text, second_text, year_text = separated_match.groups()
     first, second = int(first_text), int(second_text)
     year_width = len(year_text)
     year_value = int(year_text)
@@ -135,5 +139,5 @@ def shift_date_string(value: str, offset_days: int, date_hint: str = "dmy") -> s
         f"{shifted.year % 100:02d}" if year_width == 2 else f"{shifted.year:04d}"
     )
     if hint == "mdy":
-        return f"{shifted.month:02d}/{shifted.day:02d}/{year_output}"
-    return f"{shifted.day:02d}/{shifted.month:02d}/{year_output}"
+        return f"{shifted.month:02d}{separator}{shifted.day:02d}{separator}{year_output}"
+    return f"{shifted.day:02d}{separator}{shifted.month:02d}{separator}{year_output}"
