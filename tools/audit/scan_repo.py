@@ -31,9 +31,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 SKIP_DIRS = {".git", ".venv", "out", "__pycache__", ".pytest_cache", "node_modules"}
 FORBIDDEN_NAMES = ("truth.json", "registry.csv", "known_facts.jsonl", "raw_attack.json", "dataset_manifest.json")
 GAZETTEER = "src/detection/gazetteer_data.py"
+# Binary files that cannot be scanned directly but are generated from a scanned text source.
+RENDERED_BINARIES = {"docs/brief.pdf": "docs/BRIEF.md"}
 GENERIC_TYPES = {"HOUSE", "LOCALITY", "LANDMARK"}          # "H.No. 12", "Ward 8", "near Water Tank"
 DIGIT_TYPES = {"MRN", "PHONE", "AADHAAR", "ABHA_NUMBER", "INSURANCE_ID"}
 # Values that appear in usage examples (the kit's own "practice", placeholders such as secretA).
@@ -90,7 +93,7 @@ def word_rx(v: str) -> re.Pattern:
 
 def gazetteer_overlap(surfaces) -> str:
     try:
-        from src.detection import gazetteer_data as g
+        from detection import gazetteer_data as g
     except Exception:  # noqa: BLE001
         return "gazetteer overlap: unavailable"
     names = {norm(x) for x in g.GIVEN_NAMES + g.SURNAMES}
@@ -122,6 +125,8 @@ def main() -> int:
             raw = p.read_bytes()
         except OSError:
             continue
+        if rel in RENDERED_BINARIES and (ROOT / RENDERED_BINARIES[rel]).is_file():
+            continue  # rendered from a text source that this scan checks
         if len(raw) > 2_000_000 or b"\x00" in raw[:4096]:
             findings[rel]["BLOCK:binary-or-large"] += 1
             continue

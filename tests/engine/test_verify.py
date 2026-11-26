@@ -2,11 +2,11 @@ import json
 
 import pytest
 
-from src import contracts as c
-from src.detection.engine import DetectionEngine
-from src.verify.clinical import clinical_loss
-from src.verify.release import FileCandidate, ReleaseGate
-from src.verify import structure as st
+from core import interfaces as c
+from detection.engine import DetectionEngine
+from verify.clinical import clinical_loss
+from verify.release import FileCandidate, ReleaseGate
+from verify import structure as st
 
 SECRET = "s3cr3t-value-xyz"
 

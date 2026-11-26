@@ -19,10 +19,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-try:
-    from .. import contracts as c
-except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
-    import contracts as c
+from core import interfaces as c
 from .gazetteer_data import GENERIC_NAME_TOKENS
 from .identifiers import IdTemplates, id_digit_core
 from .names import HONORIFICS, NON_NAME, NON_NAME_DEVA, TITLES

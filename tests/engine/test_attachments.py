@@ -1,6 +1,6 @@
 import base64
 
-from src.detection.attachments import decode_base64, encode, find_payloads, sanitize_payload
+from detection.attachments import decode_base64, encode, find_payloads, sanitize_payload
 
 
 def b64(s):

@@ -18,10 +18,7 @@ from __future__ import annotations
 
 import re
 
-try:
-    from .. import contracts as c
-except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
-    import contracts as c
+from core import interfaces as c
 
 _DROP_REMAINDER = re.compile(
     r"^[\s\W_]*(?:[CSDWH][ ]?/[ ]?[Oo]|of|near|opp\.?|behind|Mr|Mrs|Ms|Smt|Shri|Sri|Dr|ji|the|and|&)?[\s\W_]*$",

@@ -16,7 +16,8 @@ _LAB_UNIT = _alt(lx.LAB_UNITS)
 _NUM = r"\d+(?:\.\d+)?"
 
 DOSE = re.compile(
-    rf"(?<![\w.]){_NUM}(?:\s?/\s?{_NUM})?\s?(?:{_DOSE_UNIT})(?![A-Za-z])"
+    # `-[0-9a-f]{4}` after the unit: the start of a UUID such as "81cc-7d1e-...", not a dose
+    rf"(?<![\w.]){_NUM}(?:\s?/\s?{_NUM})?\s?(?:{_DOSE_UNIT})(?![A-Za-z]|-[0-9a-fA-F]{{4}})"
     rf"(?:\s?\+\s?{_NUM}\s?(?:{_DOSE_UNIT})(?![A-Za-z]))*"
 )
 FREQ_PATTERN = re.compile(r"(?<![\d/\-.])[0-2](?:\s?-\s?[0-2]){2,3}(?![\d/\-])")

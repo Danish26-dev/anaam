@@ -11,12 +11,8 @@ import json
 from dataclasses import dataclass
 from typing import Callable
 
-try:
-    from .. import contracts as c
-    from ..detection.engine import DetectionEngine, apply_placeholders
-except ImportError:  # loaded as a top-level `verify` package (Omkar's sys.path layout)
-    import contracts as c
-    from detection.engine import DetectionEngine, apply_placeholders
+from core import interfaces as c
+from detection.engine import DetectionEngine, apply_placeholders
 from .clinical import clinical_loss
 from .leaks import LeakVerifier
 from . import structure as st
@@ -78,10 +74,7 @@ class ReleaseGate:
         return c.VerificationResult(False, codes, retry, c.RESCRUB if retry else c.QUARANTINE, findings)
 
     def _count(self, text):
-        try:
-            from ..detection.clinical import detect_clinical
-        except ImportError:
-            from detection.clinical import detect_clinical
+        from detection.clinical import detect_clinical
         return [s for s in detect_clinical(text) if s.proposed_action == c.KEEP]
 
     def _structure(self, cand: FileCandidate) -> list[str]:
@@ -102,8 +95,10 @@ class ReleaseGate:
 
     # ------------------------------------------------------------------ rescrub loop
     def rescrub_text(self, text: str, order: str | None = None) -> str:
+        allowed = self.leaks.allowed_ranges(text)
         spans = [s for s in self.engine.detect_text(text, order)
-                 if s.action != c.KEEP and s.category not in self.leaks.allowed_categories]
+                 if s.action != c.KEEP and s.category not in self.leaks.allowed_categories
+                 and not any(s.start < e and s.end > b for b, e in allowed)]
         extra = self._known_spans(text)
         return apply_placeholders(text, spans + extra)
 

@@ -133,8 +133,36 @@ def _drop_meta_sources(node: object) -> int:
     return removed
 
 
+# Values under these keys are structure the Bundle needs to stay resolvable and valid.
+_STRUCTURAL_KEYS = {"reference", "fullUrl", "id", "resourceType", "system", "url", "status"}
+
+
+def _clean_strings(
+    node: object, pointer: str, record_id: str | None, skip: set[str], counter: list[int]
+) -> object:
+    """Run every non-structural string through the detection seam (with record context)."""
+    if isinstance(node, dict):
+        for key in list(node):
+            child = f"{pointer}/{str(key).replace('~', '~0').replace('/', '~1')}"
+            if key in _STRUCTURAL_KEYS or child in skip:
+                continue
+            node[key] = _clean_strings(node[key], child, record_id, skip, counter)
+        return node
+    if isinstance(node, list):
+        return [
+            _clean_strings(item, f"{pointer}/{i}", record_id, skip, counter)
+            for i, item in enumerate(node)
+        ]
+    if isinstance(node, str):
+        cleaned, count = render_text(node, 0, record_id, pointer)
+        counter[0] += count
+        return cleaned
+    return node
+
+
 def render_fhir_bundle(
-    bundle: dict, index: FhirPatientIndex, pseudonym: str | None, date_offset_days: int = 0
+    bundle: dict, index: FhirPatientIndex, pseudonym: str | None, date_offset_days: int = 0,
+    record_id: str | None = None,
 ) -> tuple[str, int]:
     doc = copy.deepcopy(bundle)
     redacted = 0
@@ -181,9 +209,14 @@ def render_fhir_bundle(
         if isinstance(narrative, str):
             # Narrative is free-text prose (e.g. a rendered discharge paragraph), so an
             # inline date mention is shifted the same way whole free-text documents are.
-            cleaned, count = render_text(narrative, date_offset_days)
+            cleaned, count = render_text(narrative, date_offset_days, record_id, pointer if record_id else None)
             if _set_at_pointer(doc, pointer, cleaned):
                 redacted += count
+
+    if record_id is not None:
+        counter = [0]
+        _clean_strings(doc, "", record_id, set(index.narrative_pointers), counter)
+        redacted += counter[0]
 
     if date_offset_days:
         _shift_dates_in_place(doc, date_offset_days)

@@ -1,7 +1,7 @@
 import pytest
 
-from src import contracts as c
-from src.detection.names import detect_names
+from core import interfaces as c
+from detection.names import detect_names
 
 
 def names(text):

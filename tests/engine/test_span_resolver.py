@@ -1,5 +1,5 @@
-from src import contracts as c
-from src.detection.span_resolver import resolve
+from core import interfaces as c
+from detection.span_resolver import resolve
 
 
 def cand(text, surface, category, tier, action=c.REDACT, conf=0.9, source="t", start=None):

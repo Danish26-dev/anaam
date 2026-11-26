@@ -13,7 +13,7 @@ output/
 
 Omkar's processing and privacy engine is implemented in this repository: preflight security, inventory and hashing, format detection/adapters, format-aware serialization, identity blocking/scoring/clustering, HMAC pseudonyms, date shifting, static generalization, report/manifest generation, and local A1/A3/A4/A5/A6/A7 attack tools.
 
-The repository currently routes detection through `src/detection/api.py`, which delegates to `src/detection/stub_detector.py` as a temporary integration seam. It only catches a small set of direct identifiers. Danish's clinical shield, multilingual PII detection, hidden-channel detector, and independent release verifier must replace that stub before submission. Current practice leak and linking results are therefore not final submission claims.
+Danish's detection engine is wired in through `src/detection/api.py`. It provides the clinical shield, multilingual PII detection, hidden channels and identity evidence. The independent release gate (`src/verify/`) checks every file before publication. On the practice data, `main.py` leaves 0 of 3,230 PII pieces visible, finds 0 of 4 canaries, keeps 4,855 of 4,855 medical values and links patients with F0.5 0.94. The official `check_submission.py --run` reports READY TO SUBMIT under Linux. Numbers, the held-out test and their limits: `docs/EVALUATION.md`. `src/detection/stub_detector.py` is no longer used.
 
 ## Requirements
 
@@ -101,7 +101,7 @@ Pair scoring applies the published rule: link on a shared strong identifier, or 
 Abstention is intentional: an unresolved record receives `patient: null` rather than a risky merge.
 Danish's detection and verification engine is also in this repository: the clinical shield, multilingual PII detection, the identity lexicon, hidden-channel sanitisation and the independent release verifier (see [Detection and verification engine](#detection-and-verification-engine) below).
 
-**The two halves are not wired together yet.** `main.py` still routes detection through `src/detection/api.py`, which delegates to the temporary regex stub `src/detection/stub_detector.py`. The shared dataclasses are reconciled in `src/core/interfaces.py`; what remains before the engine can be plugged in is the span action names and the engine's import layout (see `docs/INTERFACE_NOTES.md`). Practice results from `main.py` today therefore reflect the stub, not the engine.
+Identity evidence (names, relatives, national and scoped IDs, phones, DOB, age, gender, village) comes from the detection engine, which reads every field with its classified role. `main.py` calls the engine through `src/detection/api.py` (see `docs/INTERFACE_NOTES.md`).
 ## Pseudonyms
 
 A linked cluster receives:
@@ -134,7 +134,7 @@ Purpose-separated subkeys are derived from `RAKSHA_SECRET` for pseudonyms, date 
 
 CSV/TSV rows and JSON records (flat or nested, e.g. a registration record's `address.village`/`address.pin`) use one compatible plan per profile. Exact duplicate files do not inflate group counts. Location policy escalates from tehsil to district and then suppresses village, PIN, tehsil, and district when even district-level release is too rare. Generalized records are marked in `records.jsonl` and counted in `report.json`.
 
-The CSV header-role table and the JSON key-role table share one lookup (`core.header_roles.role_for_header`), so a renamed column and a renamed JSON key are recognized identically. Full field classification for genuinely unseen labels is part of the pending detector integration; this table is a conservative, exact-match fallback, not a classifier.
+The CSV header-role table and the JSON key-role table share one lookup (`core.header_roles.role_for_header`), so a renamed column and a renamed JSON key are recognized identically. This table is a conservative, exact-match lookup, not a classifier. A column it does not recognise is handled by the detection engine's field classifier, which redacts a village or reduces a PIN instead of generalising it.
 
 ## FHIR handling
 
@@ -145,7 +145,7 @@ For single-patient R4 document Bundles Anaam:
 - removes `meta.source` values that may contain source MRNs/paths;
 - rewrites patient references at any nesting depth;
 - preserves opaque `urn:uuid` full URLs and resolvability;
-- sanitizes indexed narrative text;
+- sanitizes indexed narrative text and every other non-structural string through the detection engine;
 - shifts all recognized dates with one patient offset.
 
 Bundles with zero or multiple Patient resources fail closed until per-patient Bundle partitioning is implemented.
@@ -154,7 +154,7 @@ Bundles with zero or multiple Patient resources fail closed until per-patient Bu
 
 Filename and directory components containing phone-number or scoped hospital-ID shapes are replaced by secret-keyed HMAC names while preserving file extensions. `report.json` identifies input files only by SHA-256 and declares the new output path; it never contains original filenames.
 
-Name-only filename detection will be supplied by the hidden-channel detector during Danish's integration.
+Before that mapping, the engine's `sanitize_path` removes names and identifiers from every path component and adds a keyed tag, so name-only file names are covered too.
 
 ## Security design
 
@@ -215,12 +215,12 @@ On the bundled 200-file practice dataset, Omkar's pipeline currently:
 - copies zero unsupported files raw;
 - passes `python -m unittest discover -s tests` (76 unit tests, standard library only).
 
-These are development measurements, not final team claims. Detection, linking, independent verification, held-out testing, and the two-page project brief remain before submission.
+These pipeline checks were measured before the engine was wired in. With the engine, the contract, file accounting and determinism results are the same (`docs/EVALUATION.md` section 7), and the local A7 approximation shows 3.3% coincidentally stable date pairs.
 
 ## Detection and verification engine
 
-Implemented by Danish in `src/detection/` and `src/verify/`, with 317 tests in `tests/engine/`.
-It is a library: `main.py` does not call it yet.
+Implemented by Danish in `src/detection/` and `src/verify/`, with 335 tests in `tests/engine/`.
+`main.py` calls it through `src/detection/api.py` (call order and span policy: `docs/INTERFACE_NOTES.md`).
 
 | Module | What it does |
 |---|---|
@@ -234,18 +234,17 @@ It is a library: `main.py` does not call it yet.
 | `attachments.py`, `engine.py` | base64, `\u`, percent and HTML-entity payloads decoded, scrubbed and re-encoded; file names, CSV headers and JSON keys renamed only on strong evidence |
 | `src/verify/` | independent release gate: known patient values (including inside payloads), residual detection, clinical loss, CSV/JSON shape, FHIR references, pseudonym presence; rescrub once, then quarantine; abort only on release-level breakage; findings carry codes, never values |
 
-Measured on the practice data with a development runner (`tools/bench/run_bench.py`, not the submission entry point), using the official `check_dev.py`: 0 of 3,230 PII pieces visible in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On four synthetic chaos seeds with unseen names and formats, recall was 1.0. Those seeds were written by the same author as the rules, so they are not a substitute for a held-out test. Details and limits: `docs/EVALUATION.md`.
+Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible, all medical values kept, but no patients linked. The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
 
 Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
 
-## Known limitations before team integration
-- `main.py` does not use the detection engine yet; until it does, the release relies on the stub, which does not remove most patient/relative names, MRNs, addresses, masked Aadhaar values, multilingual names, Base64 identity data, PII-bearing JSON keys/headers, or name-only filenames.
-- Identity linkage remains empty until real `IdentityEvidence` arrives from Danish's detector modules.
-- The independent release verifier is not wired into candidate publication yet.
-- Record-level rare-condition suppression depends on clinical risk flags from Danish's side.
+## Known limitations
+- Profile re-identification (local A4) is 51% of practice profiles. Raising `min_group_size` to 10 or 20 or widening age bands to 10 years did not change it, so the remaining risk comes from evidence the privacy layer does not yet generalise (likely dates, diagnoses and hospital combined).
+- On unseen formats, no patients are linked: identity resolution needs `core.header_roles` to recognise a patient-identity column. Detection carried over to unseen formats; linking did not.
+- Record-level rare-condition suppression depends on clinical risk flags from Danish's side and is not implemented.
 - Multi-patient FHIR Bundles are quarantined rather than partitioned.
 - FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource type) are not passed through O10's age/village/PIN generalization; only CSV and JSON records are.
-- The Project Brief PDF has not been added.
+- `report.json` shows `peak_rss_mb: 0.0` on Windows (no `resource` module); on Linux it is measured (47 MB on the practice data).
 
 ## Submission configuration
 

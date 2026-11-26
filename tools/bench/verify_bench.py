@@ -18,12 +18,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools" / "bench"))
 
 import run_bench as rb  # noqa: E402
-from src import contracts as c  # noqa: E402
-from src.detection.engine import DetectionEngine  # noqa: E402
-from src.verify.release import FileCandidate, ReleaseGate  # noqa: E402
+from core import interfaces as c  # noqa: E402
+from detection.engine import DetectionEngine  # noqa: E402
+from verify.release import FileCandidate, ReleaseGate  # noqa: E402
 
 
 def parse_inputs(inp: Path):

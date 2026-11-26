@@ -1,7 +1,7 @@
 import pytest
 
-from src import contracts as c
-from src.detection.address import address_segments, detect_address_components
+from core import interfaces as c
+from detection.address import address_segments, detect_address_components
 
 
 def parts(text, spans):

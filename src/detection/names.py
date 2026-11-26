@@ -17,10 +17,7 @@ from __future__ import annotations
 
 import re
 
-try:
-    from .. import contracts as c
-except ImportError:  # loaded as a top-level `detection` package (Omkar's sys.path layout)
-    import contracts as c
+from core import interfaces as c
 from . import clinical_lexicon as clx
 from .gazetteer_data import (COMMON_WORDS, GENERIC_NAME_TOKENS, HINDI_COMMON_WORDS, KIN_TERMS, MONTHS,
                              NOT_NAME_BEFORE_HONORIFIC, POSTFIX_HONORIFICS, POSTFIX_HONORIFICS_DEVA,

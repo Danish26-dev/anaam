@@ -1,5 +1,5 @@
-from src import contracts as c
-from src.detection.identity_lexicon import IdentityLexicon
+from core import interfaces as c
+from detection.identity_lexicon import IdentityLexicon
 
 
 def lex():

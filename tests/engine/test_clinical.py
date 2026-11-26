@@ -1,7 +1,7 @@
 import pytest
 
-from src import contracts as c
-from src.detection.clinical import detect_clinical
+from core import interfaces as c
+from detection.clinical import detect_clinical
 
 
 def covered(text, needle, categories=None):
