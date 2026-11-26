@@ -27,7 +27,7 @@ def canonical_name_tokens(name: str) -> tuple[str, ...]:
 
     This is intentionally conservative: it does NOT do fuzzy/phonetic matching (that is a
     separate, lower-confidence candidate pass per O6). It only normalizes case/spacing/
-    honorifics so "VIJAY YADAV" and "vijay yadav" compare equal.
+    honorifics so "TARUN VELLAN" and "tarun vellan" compare equal.
     """
     honorifics = {"ji", "sahab", "didi", "shri", "smt", "mr", "mrs", "dr", "md"}
     tokens = re.split(r"[\s.]+", name.strip().lower())
