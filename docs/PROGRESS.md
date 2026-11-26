@@ -67,6 +67,13 @@ Each commit was checked out alone in a temporary worktree and its own tests run.
 - The first wiring commit staged only the shim deletion (a deleted path made `git add` fail). The two
   unpushed local commits were rebuilt with `git reset --soft`; nothing pushed was rewritten.
 
+- Released TSV corruption (reported by Omkar, reproduced on `fb8a368`, fixed in `227ca2f`): the release
+  gate re-scrubbed `registration/jeevanjyoti_patients.tsv` as one flat string; a phone-shaped span that
+  crossed a tab (digits ending one cell and starting the next) was replaced with the tab, so 7 of 31 rows
+  had 13 cells instead of 14, and the structure check (row count and header width only) passed it.
+  Now every row's width is compared with the input, the rescrub works cell by cell, and CSV/TSV are
+  scanned cell by cell. The kit's `validate_output.py` and `check_submission.py` did not detect it.
+
 ## Open items
 
 1. Linking on unseen formats: held-out CSV/TSV records get no pseudonym (`find_patient_identity_column`); accuracy unmeasured until the chaos generator writes patient labels. (An earlier "no pseudonyms" claim was a measurement artefact; see EVALUATION section 6.)

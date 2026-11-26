@@ -2,7 +2,7 @@
 
 **Anaam protects patient identity while preserving the clinical information that makes hospital data valuable for research.**
 
-**Track 3 · Secret Wards** · Members: Md Danish Ali, Omkar *(full name to confirm)* · Repo: https://github.com/Danish26-dev/anaam
+**Track 3 · Secret Wards** · Members: Md Danish Ali, Omkar L Kulkarni · Repo: https://github.com/Danish26-dev/anaam
 
 ## 1. In one paragraph
 
