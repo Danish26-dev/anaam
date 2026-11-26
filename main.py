@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -26,10 +27,13 @@ from core.preflight import run_preflight  # noqa: E402
 from core.record_ids import content_anchor  # noqa: E402
 from detection.api import (  # noqa: E402
     configure as configure_detection,
+    date_order as detection_date_order,
+    engine as detection_engine,
     extract_identity_evidence,
     prepare as prepare_detection,
     sanitize_path,
 )
+from verify.release import FileCandidate, ReleaseGate  # noqa: E402
 from export.candidate import (
     CandidateFile,
     publish_candidates,
@@ -384,6 +388,7 @@ def main() -> int:
                 raise IngestError("unsupported_format")
 
             pending_item["envelope"] = file_envelope
+            pending_item["source_text"] = text  # for the verifier's clinical-loss check
             pending.append(pending_item)
 
         except (IngestError, UnicodeError, RecursionError) as exc:
@@ -698,9 +703,11 @@ def main() -> int:
 
             envelope.terminal_status = "sanitized"
             exported_files.add(f"sanitized/{out_rel}")
-            report.add_file(FileReportEntry(
+            item["report_entry"] = FileReportEntry(
                 input_sha256=entry.sha256, output=f"sanitized/{out_rel}", status="sanitized"
-            ))
+            )
+            report.add_file(item["report_entry"])
+            item["candidate_index"] = len(candidates) - 1
 
         except Exception as exc:  # noqa: BLE001 - one bad file must not abort the whole release
             # Roll back anything this file already queued, then quarantine it alone so
@@ -716,6 +723,54 @@ def main() -> int:
                 input_sha256=entry.sha256, output=None,
                 status="quarantined", reason=safe_reason(exc),
             ))
+
+    # ---- release gate (Danish's verifier): every candidate is checked before publication.
+    # A leak gets one re-scrub; a file that still fails is quarantined alone (fail closed).
+    gate = ReleaseGate(
+        detection_engine(),
+        allowed_tokens={p for p in pseudonym_map.values() if p},
+        secret=os.environ.get("RAKSHA_SECRET"),
+    )
+    gate.prepare()
+    rejected: set[int] = set()
+    for item in pending:
+        index = item.get("candidate_index")
+        if index is None:
+            continue
+        candidate = candidates[index]
+        output_name = f"sanitized/{item['out_rel']}"
+        claimed = tuple(sorted({
+            e.patient for e in record_manifest if e.file == output_name and e.patient
+        }))
+        table = item.get("table")
+        check = FileCandidate(
+            text=candidate.content.decode("utf-8"),
+            original_text=item.get("source_text"),
+            fmt=candidate.format,
+            pseudonyms=claimed,
+            n_columns=len(table.header) if table is not None else None,
+            n_rows=len(table.rows) if table is not None else None,
+            delimiter=table.delimiter if table is not None else ",",
+            order=detection_date_order(item["envelope"].input_sha256),
+        )
+        try:
+            verdict, fixed = gate.verify_and_fix(check)
+        except Exception:  # noqa: BLE001 - a verifier crash must not release the file
+            verdict, fixed = None, check
+        if verdict is not None and verdict.passed:
+            if fixed.text != check.text:
+                candidates[index] = text_candidate(item["out_rel"], fixed.text, candidate.format)
+            continue
+        rejected.add(index)
+        item["envelope"].terminal_status = "quarantined"
+        for record in item["envelope"].records:
+            transform_plans[record.record_id].status = "quarantined"
+        exported_files.discard(output_name)
+        record_manifest[:] = [e for e in record_manifest if e.file != output_name]
+        item["report_entry"].output = None
+        item["report_entry"].status = "quarantined"
+        item["report_entry"].reason = "release_verifier_failed"
+    candidates = [cand for i, cand in enumerate(candidates) if i not in rejected]
 
     if any(envelope.terminal_status is None for envelope in file_envelopes):
         raise IngestError("file_missing_terminal_status")

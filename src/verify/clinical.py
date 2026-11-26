@@ -12,8 +12,11 @@ from core import interfaces as c
 from detection.clinical import detect_clinical
 from detection.normalization import normalize_key
 
+# Medical content only. Ward and organization names are protected from being read as PII,
+# but they also occur inside addresses ("Ward 8" as a locality) and file-level metadata,
+# where redacting them is correct; counting them as clinical loss quarantined good files.
 CORE = (c.MEDICATION, c.DOSE, c.FREQUENCY, c.VITAL, c.LAB, c.DIAGNOSIS, c.DIAGNOSIS_CODE, c.PROCEDURE,
-        c.COMPLAINT, c.HISTORY, c.EPONYM, c.DOCTOR, c.WARD, c.ORGANIZATION)
+        c.COMPLAINT, c.HISTORY, c.EPONYM, c.DOCTOR)
 
 
 def protected_multiset(text: str, categories=CORE) -> Counter:

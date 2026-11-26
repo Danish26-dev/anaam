@@ -95,8 +95,10 @@ class ReleaseGate:
 
     # ------------------------------------------------------------------ rescrub loop
     def rescrub_text(self, text: str, order: str | None = None) -> str:
+        allowed = self.leaks.allowed_ranges(text)
         spans = [s for s in self.engine.detect_text(text, order)
-                 if s.action != c.KEEP and s.category not in self.leaks.allowed_categories]
+                 if s.action != c.KEEP and s.category not in self.leaks.allowed_categories
+                 and not any(s.start < e and s.end > b for b, e in allowed)]
         extra = self._known_spans(text)
         return apply_placeholders(text, spans + extra)
 

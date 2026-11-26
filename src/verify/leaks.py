@@ -29,6 +29,7 @@ HEADER_WEAK = frozenset({"postposition", "postposition_deva", "bigram", "lexicon
 DEFAULT_ALLOWED_CATEGORIES = frozenset({
     c.DATE, c.DOB, c.AGE, c.TEHSIL, c.DISTRICT, c.DOCTOR, c.WARD, c.ORGANIZATION,
 })
+_PSEUDONYM_LIKE = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+")
 _DIGIT_RUN = re.compile(r"(?<!\d)\d(?:[ \-./]?\d)*(?!\d)")
 # \w splits Devanagari words at vowel signs (combining marks), so the script range is explicit
 _WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?|[\u0900-\u0963\u0971-\u097F]+")
@@ -80,6 +81,9 @@ class LeakVerifier:
         findings: list[c.LeakFinding] = []
         for norm, base in self._views(text):
             protected = [(s.start, s.end) for s in detect_clinical(norm) if s.proposed_action == c.KEEP]
+            # issued pseudonyms: letters or digits inside their code are not known values
+            pseudonyms = self.allowed_ranges(norm)
+            protected += pseudonyms
             if k["doctor_full_rx"] is not None:   # a harvested doctor's full name stays, with or without "Dr."
                 protected += [(m.start(), m.end()) for m in k["doctor_full_rx"].finditer(norm)]
             pos = lambda a, b: (a, b) if base == 0 else (-1, -1)   # offsets only for the main view
@@ -103,6 +107,8 @@ class LeakVerifier:
                 findings.append(c.LeakFinding(s, e, "KNOWN_NAME", c.CONTENT if base == 0 else c.BASE64))
             for m in _DIGIT_RUN.finditer(norm):
                 d = re.sub(r"\D", "", m.group(0))
+                if any(s <= m.start() and m.end() <= e for s, e in pseudonyms):
+                    continue
                 if d in k["ids"] or (len(d) in (11, 12, 13) and d[-10:] in k["ids"]):
                     s, e = pos(m.start(), m.end())
                     findings.append(c.LeakFinding(s, e, "KNOWN_ID", c.CONTENT if base == 0 else c.BASE64))
@@ -129,9 +135,13 @@ class LeakVerifier:
         """`structured` (CSV/JSON/FHIR): an ID-shaped token with no label is probably a bill or
         visit number, so only labelled, learned or known identifiers count there."""
         findings = []
+        allowed = self.allowed_ranges(text)
         for s in self.engine.detect_text(text, order):
             if s.action == c.KEEP or s.category in self.allowed_categories:
                 continue
+            if any(s.start < e and s.end > b for b, e in allowed):
+                continue  # letters inside a pseudonym's code that happen to spell a name
+
             if structured and s.reason_code == "id_shape":
                 continue
             if s.start < header_len and (s.reason_code in HEADER_WEAK):
@@ -140,6 +150,17 @@ class LeakVerifier:
                 continue
             findings.append(c.LeakFinding(s.start, s.end, f"RESIDUAL_{s.category}", c.CONTENT))
         return findings
+
+    def allowed_ranges(self, text: str) -> list[tuple[int, int]]:
+        """Character ranges of allowed tokens (issued pseudonyms) in `text`."""
+        if not self.allowed_tokens:
+            return []
+        low = text.casefold()
+        out = []
+        for m in _PSEUDONYM_LIKE.finditer(text):
+            if low[m.start():m.end()] in self.allowed_tokens:
+                out.append((m.start(), m.end()))
+        return out
 
     def _is_allowed_surface(self, surface: str, category: str) -> bool:
         s = surface.strip()
