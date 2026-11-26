@@ -36,8 +36,11 @@ FORBIDDEN_NAMES = ("truth.json", "registry.csv", "known_facts.jsonl", "raw_attac
 GAZETTEER = "src/detection/gazetteer_data.py"
 GENERIC_TYPES = {"HOUSE", "LOCALITY", "LANDMARK"}          # "H.No. 12", "Ward 8", "near Water Tank"
 DIGIT_TYPES = {"MRN", "PHONE", "AADHAAR", "ABHA_NUMBER", "INSURANCE_ID"}
+# Values that appear in usage examples (the kit's own "practice", placeholders such as secretA).
+# Anything else assigned to RAKSHA_SECRET in a committed file is treated as a real secret.
+EXAMPLE_SECRETS = r"(?!(?:practice|secret[A-Z]?|example|changeme|your[-_]?secret|<[^>]*>|\$\{?\w+\}?)['\"])"
 SECRET_PATTERNS = [
-    (re.compile(r"RAKSHA_SECRET\s*=\s*['\"][^'\"\s]{6,}['\"]"), "hardcoded RAKSHA_SECRET value"),
+    (re.compile(r"RAKSHA_SECRET\s*=\s*['\"]" + EXAMPLE_SECRETS + r"[^'\"\s]{6,}['\"]"), "hardcoded RAKSHA_SECRET value"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "private key"),
     (re.compile(r"(?i)\b(?:api[_-]?key|passwd|password|token)\s*[:=]\s*['\"][A-Za-z0-9_\-]{12,}['\"]"), "credential-like string"),
 ]

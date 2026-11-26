@@ -99,7 +99,9 @@ High-frequency weak blocks are capped and skipped instead of creating quadratic 
 Pair scoring applies the published rule: link on a shared strong identifier, or an exact canonical name plus a supporting clue. Contradictory national/scoped identifiers are hard conflicts. Gender, age, location, and relative mismatches are recorded as soft conflicts. `PROBABLE` edges may only join singleton clusters, so weak evidence cannot propagate through an A-B-C bridge. Before every merge, all cross-cluster evidence is checked directly for hard conflicts, even if a pair never shared a blocking key.
 
 Abstention is intentional: an unresolved record receives `patient: null` rather than a risky merge.
+Danish's detection and verification engine is also in this repository: the clinical shield, multilingual PII detection, the identity lexicon, hidden-channel sanitisation and the independent release verifier (see [Detection and verification engine](#detection-and-verification-engine) below).
 
+**The two halves are not wired together yet.** `main.py` still routes detection through `src/detection/api.py`, which delegates to the temporary regex stub `src/detection/stub_detector.py`. The shared dataclasses are reconciled in `src/core/interfaces.py`; what remains before the engine can be plugged in is the span action names and the engine's import layout (see `docs/INTERFACE_NOTES.md`). Practice results from `main.py` today therefore reflect the stub, not the engine.
 ## Pseudonyms
 
 A linked cluster receives:
@@ -215,9 +217,29 @@ On the bundled 200-file practice dataset, Omkar's pipeline currently:
 
 These are development measurements, not final team claims. Detection, linking, independent verification, held-out testing, and the two-page project brief remain before submission.
 
-## Known limitations before team integration
+## Detection and verification engine
 
-- The temporary detector does not remove most patient/relative names, MRNs, addresses, masked Aadhaar values, multilingual names, Base64 identity data, PII-bearing JSON keys/headers, or name-only filenames.
+Implemented by Danish in `src/detection/` and `src/verify/`, with 317 tests in `tests/engine/`.
+It is a library: `main.py` does not call it yet.
+
+| Module | What it does |
+|---|---|
+| `normalization.py`, `transliteration.py` | NFKC, zero-width, homoglyph, Indic-digit and diacritic folding with offsets mapped back to the original; Devanagari to Latin and cross-script name keys (Mohammad, Mohd, Md., मोहम्मद compare equal) |
+| `clinical*.py` | Clinical Shield: medicines with dose, frequency and duration chains, vitals, labs with units, ICD codes, diagnoses, eponyms, procedures, complaints, history clauses, doctors, wards, hospitals |
+| `identifiers.py`, `dates.py`, `address.py` | phones in every format, Aadhaar, ABHA, PAN, insurance and hospital IDs (labelled, shaped, learned templates), dates and ages, address components with a whitelist line classifier |
+| `names.py` | context rules for names in English, Devanagari and Hinglish without a name list (labels, S/o W/o C/O, honorifics, time-log and sender lines), so unseen names and canaries are found |
+| `identity_lexicon.py` | names, IDs and villages harvested from structured columns, then found again across scripts and spellings |
+| `field_classifier.py` | classifies CSV columns and JSON keys from headers and values, so renamed headers still work |
+| `span_resolver.py` | direct ID > explicit name > date or age > clinical protection > weak guess |
+| `attachments.py`, `engine.py` | base64, `\u`, percent and HTML-entity payloads decoded, scrubbed and re-encoded; file names, CSV headers and JSON keys renamed only on strong evidence |
+| `src/verify/` | independent release gate: known patient values (including inside payloads), residual detection, clinical loss, CSV/JSON shape, FHIR references, pseudonym presence; rescrub once, then quarantine; abort only on release-level breakage; findings carry codes, never values |
+
+Measured on the practice data with a development runner (`tools/bench/run_bench.py`, not the submission entry point), using the official `check_dev.py`: 0 of 3,230 PII pieces visible in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On four synthetic chaos seeds with unseen names and formats, recall was 1.0. Those seeds were written by the same author as the rules, so they are not a substitute for a held-out test. Details and limits: `docs/EVALUATION.md`.
+
+Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
+
+## Known limitations before team integration
+- `main.py` does not use the detection engine yet; until it does, the release relies on the stub, which does not remove most patient/relative names, MRNs, addresses, masked Aadhaar values, multilingual names, Base64 identity data, PII-bearing JSON keys/headers, or name-only filenames.
 - Identity linkage remains empty until real `IdentityEvidence` arrives from Danish's detector modules.
 - The independent release verifier is not wired into candidate publication yet.
 - Record-level rare-condition suppression depends on clinical risk flags from Danish's side.

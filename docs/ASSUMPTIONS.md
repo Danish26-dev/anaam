@@ -24,9 +24,17 @@ Decisions that the official documents do not settle, or where they disagree.
 8. **Line endings.** Windows Git converted the kit's practice files to CRLF, changing 172 of 200 SHA-256
    values and breaking `check_dev.py`'s file matching. The kit clone uses `core.autocrlf=false` and was
    rewritten from the commit. Every checkout, ours and Omkar's, needs the same setting.
-9. **`check_submission.py` quick mode is not a readiness signal.** It prints READY TO SUBMIT with no
-   `main.py`. Only `--run` counts.
+9. **`check_submission.py` quick mode is not a readiness signal.** It checks files only and printed
+   READY TO SUBMIT even before `main.py` existed. Only `--run` counts, and `--run` cannot pass on Windows
+   when the path contains a space (POSIX quoting); it needs Linux or WSL.
 10. **`python` on this machine** resolves to a Store alias; checks were run with the project venv first on `PATH`.
-11. **Interfaces are PROPOSED** (`src/contracts.py`). Fields labelled ADDITION require co-owner approval; see `docs/INTERFACE_NOTES.md`.
+11. **One interface file.** The pipeline's `src/core/interfaces.py` stays as the single source of truth;
+   since Omkar's reconciliation (`e4727c2`) the engine's `src/contracts.py` is a re-export shim, to be
+   removed once the engine is ported. The remaining action-name and import-layout differences are listed
+   in `docs/INTERFACE_NOTES.md`.
+14. **Merge conflict choices** (`eace4a7`): `raksha.toml` and `config/policy.yaml` kept the pipeline's
+   versions because `main.py` reads them (team name stays `anaam`); `.gitignore` is the union.
+15. **Two test runners.** Pipeline tests use the standard library (`unittest`); engine tests use pytest
+   and live in `tests/engine/`, a directory without `__init__.py` that `unittest discover` skips.
 12. **Sealed holdout** must be authored by someone other than the detector's author, with different templates, and used once.
 13. **Brief PDF** (2 pages, `docs/brief.pdf`) is not started.

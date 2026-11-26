@@ -1,1 +1,3 @@
 # Anaam currently uses only the Python 3.10+ standard library.
+# No third-party package, model or pretrained weights are needed at run time.
+# Development-only test tooling is in requirements-dev.txt (not installed by raksha.toml).

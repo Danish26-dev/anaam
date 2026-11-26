@@ -1,7 +1,9 @@
 # Security model
 
-Describes what the code in this repository does today. Items marked **not implemented** belong to the
-pipeline that is not committed here.
+Describes the detection and verification engine (Danish). The pipeline's own controls (preflight,
+key derivation, network guard, atomic publication, safe reason codes) are described in `README.md`
+sections "Security design" and "Path and filename privacy". **The engine's controls below do not
+protect the release until the engine is wired into `main.py`.**
 
 ## Assets
 
@@ -33,9 +35,10 @@ pipeline that is not committed here.
 
 ## Secret handling
 
-`src/` never reads `RAKSHA_SECRET` itself. The pipeline must derive separate keys for pseudonyms,
-date shifts and file-name tags, pass the file-name key to `DetectionEngine(filename_key=...)`, and
-pass the raw secret to `ReleaseGate(secret=...)` so a leak can be detected. The dev tools do not use a
+The engine never reads `RAKSHA_SECRET` itself. The pipeline already derives purpose-separated keys
+(`src/core/keys.py`: `pseudonym_key`, `date_shift_key`, `filename_key`, `temp_key`). When wired, it must
+pass `filename_key` to `DetectionEngine(filename_key=...)` and the raw secret to `ReleaseGate(secret=...)`
+so a leak of the secret into the release can be detected. The dev tools do not use a
 secret and print only counts (`score_dev.py --show` prints practice surfaces and exists for synthetic
 practice data only).
 

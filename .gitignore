@@ -1,9 +1,43 @@
-__pycache__/
-*.pyc
+# --- local environments and caches
 .venv/
-my_output/
-out/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 *.egg-info/
 
+# --- generated outputs and local datasets (may contain practice data derivatives)
+out/
+my_output*/
+output/
+sanitized/
+
+# --- organiser data and answers must never be published
 # Practice kit data copied from the challenge repo, not our own work.
+/Secret-Wards-ToolKit/
 dev/
+**/truth.json
+**/registry.csv
+**/known_facts.jsonl
+**/raw_attack.json
+**/dataset_manifest.json
+
+# --- secrets and private material
+.env
+.env.*
+*.pem
+*.key
+secrets/
+RAKSHA_SECRET*
+
+# --- editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.tmp
