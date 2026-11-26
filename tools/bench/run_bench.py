@@ -22,9 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
-from src import contracts as c  # noqa: E402
-from src.detection.engine import DetectionEngine, apply_placeholders  # noqa: E402
+from core import interfaces as c  # noqa: E402
+from detection.engine import DetectionEngine, apply_placeholders  # noqa: E402
 
 
 # ------------------------------------------------------------------ minimal adapters

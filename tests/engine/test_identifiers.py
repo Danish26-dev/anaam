@@ -1,8 +1,8 @@
 import pytest
 
-from src import contracts as c
-from src.detection.identifiers import IdTemplates, detect_identifiers, id_digit_core, id_template
-from src.detection.normalization import TextView
+from core import interfaces as c
+from detection.identifiers import IdTemplates, detect_identifiers, id_digit_core, id_template
+from detection.normalization import TextView
 
 
 def found(text, **kw):

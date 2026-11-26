@@ -1,6 +1,6 @@
 import pytest
 
-from src.detection.transliteration import loose_form, name_key, to_latin
+from detection.transliteration import loose_form, name_key, to_latin
 
 
 @pytest.mark.parametrize("variants", [

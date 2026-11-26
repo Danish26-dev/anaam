@@ -1,5 +1,5 @@
-from src import contracts as c
-from src.detection.engine import DetectionEngine
+from core import interfaces as c
+from detection.engine import DetectionEngine
 
 
 def engine():

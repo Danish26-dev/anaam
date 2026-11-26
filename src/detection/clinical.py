@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from .. import contracts as c
+from core import interfaces as c
 from . import clinical_lexicon as lx
 from . import clinical_patterns as P
 

@@ -11,8 +11,8 @@ import json
 from dataclasses import dataclass
 from typing import Callable
 
-from .. import contracts as c
-from ..detection.engine import DetectionEngine, apply_placeholders
+from core import interfaces as c
+from detection.engine import DetectionEngine, apply_placeholders
 from .clinical import clinical_loss
 from .leaks import LeakVerifier
 from . import structure as st
@@ -74,7 +74,7 @@ class ReleaseGate:
         return c.VerificationResult(False, codes, retry, c.RESCRUB if retry else c.QUARANTINE, findings)
 
     def _count(self, text):
-        from ..detection.clinical import detect_clinical
+        from detection.clinical import detect_clinical
         return [s for s in detect_clinical(text) if s.proposed_action == c.KEEP]
 
     def _structure(self, cand: FileCandidate) -> list[str]:

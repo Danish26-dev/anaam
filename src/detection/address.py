@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 
-from .. import contracts as c
+from core import interfaces as c
 from .gazetteer_data import STATES, UP_DISTRICTS
 from .normalization import DEVANAGARI_LETTERS as DL
 

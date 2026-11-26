@@ -32,8 +32,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from src.detection.dates import find_dates  # noqa: E402
-from src.detection.normalization import TextView  # noqa: E402
+sys.path.insert(0, str(ROOT / "src"))
+from detection.dates import find_dates  # noqa: E402
+from detection.normalization import TextView  # noqa: E402
 
 _WORD = re.compile(r"[a-z0-9\u0900-\u097f]+")
 TYPE_WEIGHTS = {"AADHAAR": 1.0, "ABHA_NUMBER": 1.0, "ABHA_ADDRESS": 1.0, "PHONE": 1.0, "EMAIL": 1.0, "MRN": 1.0,

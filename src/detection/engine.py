@@ -22,7 +22,7 @@ import hmac
 import re
 from dataclasses import dataclass, field
 
-from .. import contracts as c
+from core import interfaces as c
 from . import field_classifier as fc
 from .address import address_segments, detect_address_components
 from .attachments import find_payloads, sanitize_payload

@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import re
 
-from .. import contracts as c
-from ..detection.attachments import find_payloads
-from ..detection.clinical import detect_clinical
-from ..detection.engine import DetectionEngine
-from ..detection.normalization import TextView
-from ..detection.transliteration import loose_form, name_key
+from core import interfaces as c
+from detection.attachments import find_payloads
+from detection.clinical import detect_clinical
+from detection.engine import DetectionEngine
+from detection.normalization import TextView
+from detection.transliteration import loose_form, name_key
 
 HEADER_WEAK = frozenset({"postposition", "postposition_deva", "bigram", "lexicon_token", "lexicon_place"})
 DEFAULT_ALLOWED_CATEGORIES = frozenset({

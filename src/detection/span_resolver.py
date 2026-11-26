@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import re
 
-from .. import contracts as c
+from core import interfaces as c
 
 _DROP_REMAINDER = re.compile(
     r"^[\s\W_]*(?:[CSDWH][ ]?/[ ]?[Oo]|of|near|opp\.?|behind|Mr|Mrs|Ms|Smt|Shri|Sri|Dr|ji|the|and|&)?[\s\W_]*$",

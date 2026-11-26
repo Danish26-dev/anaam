@@ -2,8 +2,8 @@ import datetime as dt
 
 import pytest
 
-from src import contracts as c
-from src.detection.dates import detect_dates_and_ages, find_dates, infer_order
+from core import interfaces as c
+from detection.dates import detect_dates_and_ages, find_dates, infer_order
 
 
 def spans(text, order=None):

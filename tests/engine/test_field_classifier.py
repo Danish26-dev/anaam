@@ -1,6 +1,6 @@
 import pytest
 
-from src.detection import field_classifier as fc
+from detection import field_classifier as fc
 
 
 @pytest.mark.parametrize("header,values,expected", [

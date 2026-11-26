@@ -31,6 +31,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 SKIP_DIRS = {".git", ".venv", "out", "__pycache__", ".pytest_cache", "node_modules"}
 FORBIDDEN_NAMES = ("truth.json", "registry.csv", "known_facts.jsonl", "raw_attack.json", "dataset_manifest.json")
 GAZETTEER = "src/detection/gazetteer_data.py"
@@ -90,7 +91,7 @@ def word_rx(v: str) -> re.Pattern:
 
 def gazetteer_overlap(surfaces) -> str:
     try:
-        from src.detection import gazetteer_data as g
+        from detection import gazetteer_data as g
     except Exception:  # noqa: BLE001
         return "gazetteer overlap: unavailable"
     names = {norm(x) for x in g.GIVEN_NAMES + g.SURNAMES}

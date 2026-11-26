@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from .. import contracts as c
+from core import interfaces as c
 
 _B = r"(?<![A-Za-z0-9+])(?<!\d[ \t\-.])"      # not inside a longer token or digit run
 _E = r"(?![ \t\-.]?\d)(?![A-Za-z0-9])"

@@ -1,4 +1,4 @@
-from src.detection.normalization import TextView, digits_only, normalize_key, tokenize
+from detection.normalization import TextView, digits_only, normalize_key, tokenize
 
 
 def test_phone_forms_compare_equal():

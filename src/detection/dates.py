@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 
-from .. import contracts as c
+from core import interfaces as c
 from .gazetteer_data import MONTHS, MONTHS_DEVA
 
 _MON = "|".join(sorted(MONTHS, key=len, reverse=True))
