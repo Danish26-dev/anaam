@@ -189,3 +189,33 @@ def sanitize_keys(keys: list[str]) -> dict[str, str]:
 
 def date_order(input_sha256: str) -> str | None:
     return _order.get(input_sha256)
+
+
+# NAME_PERSON is a deliberately weaker fallback than NAME_PATIENT/MRN: a column the
+# classifier could only tell is "some person's name" without enough context to say whose
+# (see field_classifier.classify_header's generic "name"-key defaulting rule). Still
+# worth trying last, since embedding a pseudonym where none would otherwise be embedded
+# is the entire point of this fallback -- an unseen-format file with a genuinely
+# ambiguous person-name column is a better outcome linked than silently unlinked.
+_IDENTITY_FIELD_CLASSES = ("NAME_PATIENT", "MRN", "NAME_PERSON")
+
+
+def identity_column(input_sha256: str, header: list[str]) -> int | None:
+    """The first CSV column the engine's field classifier -- header AND sample values,
+    not header name alone -- recognises as the patient's identity (a patient name or an
+    MRN-like scoped ID). Fallback for a CSV/TSV file whose identity column has a header
+    the fixed PATIENT_IDENTITY_HEADERS table (core.header_roles) does not recognise, e.g.
+    an unseen-format dataset with a renamed column: the classifier still identifies
+    NAME_PATIENT/MRN from the column's own values even when the header text is new.
+
+    Returns None if prepare() was never run for this file, or no column classifies as
+    patient identity -- callers must keep treating that as "no identity column found",
+    the same as the header-table lookup returning None.
+    """
+    eng = engine()
+    for priority_class in _IDENTITY_FIELD_CLASSES:
+        for index, raw_header in enumerate(header):
+            key = (input_sha256, f"col:{raw_header}")
+            if eng._field_class.get(key) == priority_class:
+                return index
+    return None

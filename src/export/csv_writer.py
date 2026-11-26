@@ -9,22 +9,39 @@ from core.header_roles import (
     find_patient_identity_column,
     role_for_header,
 )
+from detection.api import identity_column as engine_identity_column
 from detection.api import sanitize_header
 from export.text_writer import render_text
 from privacy.date_shift import shift_date_string
 
 
+def _find_identity_column(header: list[str], input_sha256: str | None) -> int | None:
+    """The header-name table first (core.header_roles); if that finds nothing and the
+    file has been through prepare() (input_sha256 given), fall back to the engine's
+    field classifier, which identifies a patient-identity column (NAME_PATIENT/MRN) from
+    its own values even when the header text itself is one this table has never seen --
+    the gap that left unseen-format CSV/TSV records with no pseudonym at all.
+    """
+    found = find_patient_identity_column(header)
+    if found is not None or input_sha256 is None:
+        return found
+    return engine_identity_column(input_sha256, header)
+
+
 def embeddable_pseudonyms(
-    header: list[str], rows: list[list[str]], pseudonyms_by_row: dict[int, str | None]
+    header: list[str],
+    rows: list[list[str]],
+    pseudonyms_by_row: dict[int, str | None],
+    input_sha256: str | None = None,
 ) -> dict[int, str | None]:
     """Drop claims that cannot be embedded without adding/repairing CSV columns."""
-    identity_column = find_patient_identity_column(header)
-    if identity_column is None:
+    identity_col = _find_identity_column(header, input_sha256)
+    if identity_col is None:
         return {row_index: None for row_index in range(len(rows))}
     return {
         row_index: (
             pseudonyms_by_row.get(row_index)
-            if identity_column < len(row)
+            if identity_col < len(row)
             else None
         )
         for row_index, row in enumerate(rows)
@@ -49,14 +66,17 @@ def render_csv(
     pseudonyms_by_row: dict[int, str | None],
     date_offsets_by_row: dict[int, int] | None = None,
     record_ids_by_row: dict[int, str] | None = None,
+    input_sha256: str | None = None,
 ) -> tuple[str, int]:
     """Render the original schema; never append a pseudonym column.
 
     With `record_ids_by_row`, each cell is cleaned with the detection engine's spans for that
-    record field, and header cells that hold PII are renamed (detection.api.sanitize_header)."""
+    record field, and header cells that hold PII are renamed (detection.api.sanitize_header).
+    `input_sha256` lets the identity column fall back to the engine's field classifier when
+    the header-name table (core.header_roles) does not recognise this file's header text."""
     date_offsets_by_row = date_offsets_by_row or {}
     record_ids_by_row = record_ids_by_row or {}
-    patient_column = find_patient_identity_column(header)
+    patient_column = _find_identity_column(header, input_sha256)
     date_columns = _find_date_columns(header)
 
     buffer = io.StringIO()

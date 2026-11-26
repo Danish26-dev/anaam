@@ -568,7 +568,9 @@ def main() -> int:
                     i: transform_plans[records_by_locator[f"row:{i}"].record_id].pseudonym
                     for i in range(len(table.rows))
                 }
-                pids_by_row = embeddable_pseudonyms(table.header, table.rows, pids_by_row)
+                pids_by_row = embeddable_pseudonyms(
+                    table.header, table.rows, pids_by_row, envelope.input_sha256
+                )
                 offsets_by_row = {
                     i: transform_plans[records_by_locator[f"row:{i}"].record_id].date_offset_days
                     for i in range(len(table.rows))
@@ -591,7 +593,7 @@ def main() -> int:
                 }
                 text_out, n = render_csv(
                     table.header, generalized_rows, table.delimiter, pids_by_row, offsets_by_row,
-                    record_ids_by_row,
+                    record_ids_by_row, envelope.input_sha256,
                 )
                 candidates.append(text_candidate(out_rel, text_out, envelope.detected_format))
                 identifiers_detected += n
