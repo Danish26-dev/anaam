@@ -41,3 +41,8 @@ Thumbs.db
 .vscode/
 *.log
 *.tmp
+
+# Release Studio frontend build artefacts
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
