@@ -75,8 +75,16 @@ def verify_csv_candidate(
         n_rows=n_rows,
         delimiter=delimiter,
     )
-    result, fixed = gate.verify_and_fix(cand)
-    return VerifiedCandidate(out_rel, fixed.text, cand.fmt, result, fixed.text != rendered_text)
+    # ReleaseGate's default rescrub (rescrub_text) runs the detector over the WHOLE
+    # candidate text as one flat string with no column/row boundary awareness. Found by
+    # direct observation: on a real CSV/TSV row, a detected span can straddle a column
+    # delimiter, so redacting it deletes the delimiter along with the cell content --
+    # merging two cells and shifting every later column left by one for that row. A
+    # structural corruption like that is worse than the leak it was trying to fix, so
+    # CSV/TSV gets the same no-op rescrub as JSON/FHIR: a residual leak goes straight to
+    # quarantine instead of a "fix" that can silently corrupt the row.
+    result, fixed = gate.verify_and_fix(cand, rescrub=lambda c: c)
+    return VerifiedCandidate(out_rel, fixed.text, cand.fmt, result, False)
 
 
 def verify_json_candidate(
