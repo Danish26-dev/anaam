@@ -28,11 +28,13 @@ for (let i = 0; i < 20; i++) {
   const btn = page.locator("main button", { hasText: "Mark reviewed" }).first();
   if (!(await btn.count())) break;
   await btn.click();
+  // the previous dialog fades out (exit animation); act only on the single open dialog
+  await page.waitForFunction(() => document.querySelectorAll(".dialog").length === 1);
   const submit = page.locator(".dialog button[type=submit]");
   result.reviewSubmitDisabledWhenEmpty ??= await submit.isDisabled();
   await page.locator("#review-note").fill("Checked in the e2e flow (synthetic data).");
   await submit.click();
-  await page.waitForTimeout(400);
+  await page.waitForFunction(() => document.querySelectorAll(".dialog").length === 0);
   reviewed++;
 }
 result.reviewed = reviewed;

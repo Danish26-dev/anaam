@@ -13,7 +13,7 @@ output/
 
 Omkar's processing and privacy engine is implemented in this repository: preflight security, inventory and hashing, format detection/adapters, format-aware serialization, identity blocking/scoring/clustering, HMAC pseudonyms, date shifting, static generalization, report/manifest generation, and local A1/A3/A4/A5/A6/A7 attack tools.
 
-Danish's detection engine is wired in through `src/detection/api.py`. It provides the clinical shield, multilingual PII detection, hidden channels and identity evidence. The independent release gate (`src/verify/`) checks every file before publication. On the practice data, `main.py` leaves 0 of 3,230 PII pieces visible, finds 0 of 4 canaries, keeps 4,855 of 4,855 medical values and links patients with F0.5 0.94. The official `check_submission.py --run` reports READY TO SUBMIT under Linux. Numbers, the held-out test and their limits: `docs/EVALUATION.md`. `src/detection/stub_detector.py` is no longer used.
+Danish's detection engine is wired in through `src/detection/api.py`. It provides the clinical shield, multilingual PII detection, hidden channels and identity evidence. The independent release gate (`src/verify/`) checks every file before publication. On the practice data, `main.py` leaves 0 of 3,230 PII pieces visible (content channel), finds 0 of 4 canaries, keeps 4,497 of 4,497 medical values and links patients with precision 0.97, recall 0.82 and F0.5 0.94. The official `check_submission.py --run` reports READY TO SUBMIT under Linux and WSL. Numbers, the held-out test and their limits: `docs/EVALUATION.md`. `src/detection/stub_detector.py` is no longer used.
 
 ## Requirements
 
@@ -242,23 +242,25 @@ Implemented by Danish in `src/detection/` and `src/verify/`, with 351 tests in `
 | `attachments.py`, `engine.py` | base64, `\u`, percent and HTML-entity payloads decoded, scrubbed and re-encoded; file names, CSV headers and JSON keys renamed only on strong evidence |
 | `src/verify/` | independent release gate: known patient values (including inside payloads), residual detection, clinical loss, CSV/JSON shape, FHIR references, pseudonym presence; rescrub once, then quarantine; abort only on release-level breakage; findings carry codes, never values |
 
-Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible and all medical values kept. Linking accuracy there is not measured (the generator writes no patient labels), and CSV/TSV records with unseen identity headers received no pseudonym. The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
+Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible and all medical values kept. Linking accuracy there is not measured (the generator writes no patient labels). CSV/TSV records with unseen identity headers now carry a pseudonym through the field-classifier fallback (CSV 16/16, TSV 12/16). The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
 
 Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
 
 ## Known limitations
 - **Targeted attack (local A5): 5 of 14 real patients with a known fact (35.7%)** are genuinely
-  re-identified once decoy and wrong-person coincidences are excluded from the raw local figure.
-  Concentrated in hospital name + a rare condition (shared by 1 of 122 profiles) or an exact stay
-  length; the hospital name is kept intentionally as clinical, non-identifying data. A blanket
-  rare-diagnosis-suppression attempt was built, tested and reverted after it damaged a non-patient
-  reference document with no measured benefit (`docs/PROGRESS.md`). This is now the largest known
-  privacy gap; local A4 profile re-identification is 0.0% (was 51%: traced mostly to local
-  attack-tool bugs and one real bigram-name detection gap, both fixed -- `docs/EVALUATION.md` §8).
+  re-identified once decoy and wrong-person coincidences are excluded from the raw local figure
+  (10-12 of 18). Concentrated in hospital name + a rare condition (shared by 1 of 122 profiles) or
+  an exact stay length; the hospital name is kept intentionally as clinical, non-identifying data.
+  A blanket rare-diagnosis-suppression attempt was built, tested and reverted after it damaged a
+  non-patient reference document with no measured benefit (`docs/PROGRESS.md`). This is now the
+  largest known privacy gap: local A1/A3/A4 are all 0.0% (A4 was 51-58%, traced mostly to local
+  attack-tool measurement bugs and one real bigram-name detection gap, all fixed --
+  `docs/EVALUATION.md` §8).
 - On unseen formats, CSV/TSV identity columns fall back to the engine's field classifier when
   `core.header_roles`'s fixed header table does not recognise the column (verified 0/8 -> 8/8 CSV,
-  0/8 -> 6/8 TSV on generated unseen-header samples). Linking accuracy on the sealed chaos seeds is
-  still not measured, because that generator writes no patient labels.
+  0/8 -> 6/8 TSV on generated unseen-header samples; held-out seeds: CSV 16/16, TSV 12/16). Linking
+  accuracy on the sealed chaos seeds is still not measured, because that generator writes no
+  patient labels.
 - Record-level rare-condition suppression depends on clinical risk flags from Danish's side and is not implemented.
 - Multi-patient FHIR Bundles are quarantined rather than partitioned.
 - FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource

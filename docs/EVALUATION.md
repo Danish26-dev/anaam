@@ -132,12 +132,19 @@ none, because `core.header_roles.find_patient_identity_column` does not recognis
 engine's field classifier does: `NAME_PATIENT`, `MRN`). The generator needs patient labels before
 linking on unseen formats can be measured.
 
+Update (commits `880fc5b`, `425e0b9`): CSV/TSV identity columns and JSON identity keys that the
+header table does not recognise now fall back to the engine's field classifier. On the same two
+seeds, records carrying a pseudonym are CSV 8/8 and 8/8, TSV 6/8 and 6/8, JSON 12/14 and 12/14,
+text 24/34 and 28/38; PII visible and medical values are unchanged (1 of 826; 302 of 302). Linking
+accuracy on these seeds remains unmeasured (the generator still writes no patient labels).
+
 ## 7. Official submission check
 
 `check_submission.py --repo . --run` under WSL Ubuntu (Python 3.12.3, a `python` alias to `python3`
 on `PATH`, which the `run` line needs): **READY TO SUBMIT**. Exit 0 in 18.1 s, CONTRACT OK,
 identical output with the same secret, different output with a different secret, secret never
-written, input unchanged. The only warning is the missing brief PDF.
+written, input unchanged. Reconfirmed on Windows after every commit in section 8 below (exit 0 in
+24-36 s, same checks passing).
 
 Resources on Linux (`/usr/bin/time -v`, 200 practice files): 16.5 s wall clock, 48.2 MB peak
 resident memory (`report.json`: 14.7 s, 47.1 MB). The event limit is 15 minutes per run.
@@ -172,9 +179,16 @@ looking too high relative to the organisers' own reference implementation) found
   whole-word containment. Dev tooling only.
 
 Re-measured on the practice data across three different `RAKSHA_SECRET` values after all four
-fixes: A1 0.0%, A3 0 of 817 records with any candidate, A4 0.0% (122 profiles), consistently. 427
-tests pass (up from 411); `check_dev.py` and `check_submission.py --run` unaffected
-(`CONTRACT OK`, `READY TO SUBMIT`, 4497/4497 medical, F0.5 0.94).
+fixes: A1 0.0%, A3 0 of 817 records with any candidate, A4 0.0% (122 profiles), consistently.
+`check_dev.py`'s linking figure on this checkout is precision 0.97, recall 0.82, F0.5 0.94, 1
+wrong merge, unaffected by any of these fixes (none touch `src/identity/*`). 427 tests pass (up
+from 411); `check_submission.py --run` unaffected (`CONTRACT OK`, `READY TO SUBMIT`, 4497/4497
+medical on this checkout).
+
+A separate, independent change (`docs(brief)` on `origin/main`) re-rendered `docs/brief.pdf` from
+`docs/BRIEF.md` with its own fresh measurement pass and added `docs/brief/*.svg` diagrams plus a
+rebuilt `tools/brief/build_brief.py`; those commits were merged in alongside this section without
+further changes here.
 
 ## 9. Test history
 
