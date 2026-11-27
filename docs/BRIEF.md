@@ -69,7 +69,7 @@ input/ ─► ingestion ─► detection pass 1 ─► detection pass 2 ─► i
 | leaked by hiding place (content, base64, metadata, key, header) | 0.0% each. The file-name channel reads high on this checkout for the same line-ending artifact and is not a real leak |
 | medical values kept | 100% (4,497 of 4,497) |
 | linking precision / recall / F0.5 | 0.97 / 0.82 / 0.94 (1 wrong merge) |
-| re-identification risk (local attack lab, unprotected copy → Anaam) | A1 direct exposure 33.8% → 4.6% (11/240); A3 mean top-candidate share 0.80 among records with any registry candidate (21 of 817); A4 profiles re-identified 17.2% (21/122), close to the organisers' own reference figure of 16.7%; A5 targeted facts found 55.6% (10/18); A5 global shift not recoverable (good); A6 inversion 0%; A7 stable pseudonyms and dates 0% |
+| re-identification risk (local attack lab, unprotected copy → Anaam) | A1 direct exposure 33.8% → 0.0% (0/240); A3 0 of 817 records give the attacker any registry candidate at all; A4 profiles re-identified 0.0% (0/122) locally, against the organisers' own reference figure of 16.7% on comparable data; A5 targeted facts found on real patients 5 of 14 known-fact patients (35.7%) once decoys and wrong-person coincidences are excluded from the raw 10-11/18 headline figure (see §6); A5 global shift not recoverable (good); A6 inversion 0%; A7 stable pseudonyms and dates 0% |
 | run time / peak memory (Windows, 200 files) | ~25 s / see `check_submission.py --run` |
 | on data we did not tune on (2 sealed seeds) | 1 of 826 PII pieces visible (0.1%), medical 302 of 302; CSV/TSV linking now embeds a pseudonym via the field classifier's fallback (see §6), verified 8/8 and 6/8 on generated unseen-format samples |
 
@@ -87,23 +87,34 @@ linking recall. Content-channel leak and medical-preservation numbers are unaffe
 
 ## 6. Known limitations
 
-- **A4 profile re-identification at 17.2%**, close to the organisers' own reference (16.7%). An
-  earlier reading of ~58% traced mostly to our own local attack tool, not to Anaam: it matched a
-  registry house number as a bare digit anywhere in a profile (a dose, a lab value, a day count),
-  crediting a coincidence as full confidence whenever it was the only candidate that scored at all.
-  Fixing the local tool to require address-shaped context (as the documented attacker's
-  field-aware evidence extraction implies) and to skip doctor names after "Dr." dropped the number
-  to its current, much more credible level; the remaining hits trace to real surname-token
-  overlaps between a doctor and an unrelated registry entry. We built and tested a rare-diagnosis
-  suppression pass against the earlier, inflated number; it measured zero benefit to A4/A5 locally
-  and introduced real false positives (flagging a hospital reference document and a common
-  procedure as rare), so we reverted it rather than ship an unverified change -- a decision the
-  corrected measurement now supports, since the real gap it targeted was smaller than it looked.
-  **A5** matches more known facts on our release (10 of 18) than on an unprotected copy (5 of 18):
-  linked pseudonyms let an attacker pool facts per patient, and the hospital name (kept
-  intentionally, as clinical data) combined with a rare condition hint or exact stay length is
-  enough on its own; this risk is structural to the privacy-utility trade-off we chose and is not
-  resolved by the measurement fix above.
+- **Two real detection gaps found and fixed this pass, not measurement artifacts.** (1) A name
+  written as a bare two-word phrase with no label (seen in a FHIR narrative, "Shabana Bano, 27 yrs,
+  female") kept its surname unredacted whenever that surname was also a generic Indian name-part
+  (Bano, Kaur, Begum, Singh, Devi, ...): the detector's unlabeled-name rule required every word in
+  the phrase to be individually identifying, so a real first name plus a generic surname part failed
+  that check even though the two words together identify one person. Fixed to require only one
+  identifying word, matching how every other name rule (label, honorific, relation) already works.
+  (2) Ages in free-text documents and FHIR narratives were never banded, only in CSV/JSON: a
+  Devanagari discharge note's exact "आयु: 97 वर्ष" (age 97) survived untouched while the same
+  patient's registration row correctly showed a 5-year band. Fixed by threading the age-band policy
+  into the free-text and FHIR writers. Both of these directly explained most of the local A1/A3/A4
+  numbers we previously reported (58.2%/23 candidates) and one real exposure path in the
+  "re-identification trap" (very old age + rare disease) cases A5 targets.
+- **A5 (targeted attack): 5 of 14 real patients with a known fact (35.7%) are genuinely
+  re-identified**, after correcting our local tool for two further measurement gaps: it counted a
+  match against a decoy (someone who never visited, which the real evaluator scores separately as
+  a membership-inference false positive, not a re-identification) the same as a real patient, and it
+  never checked that the matched profile was actually the *right* person -- 5 of the raw 11 "matches"
+  turned out to be a different real patient's profile coincidentally sharing the same hospital and a
+  common condition or date. Of the 5 genuine hits, 2 are the sharpest case (a rare disease -- rabies,
+  kala-azar -- shared by only 1 profile each in the whole dataset; both now also get the correct
+  90+ age band after the fix above) and 3 are hospital+condition matches where the condition is
+  common but the combination still narrows to one profile in this dataset's size. The hospital name
+  is kept intentionally as clinical, non-identifying data; coarsening it further, or suppressing
+  rare diagnosis text, would cost real clinical-utility points for an unverified privacy gain --
+  we tried a blanket version of the latter earlier and reverted it after it damaged a non-patient
+  reference document and flagged a common procedure as rare with no measured benefit. This remains
+  the single largest known privacy gap, now accurately sized rather than inflated.
 - Our held-out data was generated by the detector's author, so it is a weaker test than third-party data.
 - Multi-patient FHIR Bundles are quarantined, not partitioned.
 - No encryption of data at rest: by design there is none to encrypt, since candidates are held in

@@ -188,6 +188,38 @@ not just the test suite:
    does not block using them -- just means they are not committed to the submission repo itself.
 4. Brief PDF (`docs/brief.pdf`) re-rendered with current measured numbers as part of the Release
    Studio merge.
+5. ~~Unredacted trailing generic surname in unlabeled names~~ fixed (commit after `4c30a6d`):
+   `detect_names`'s bigram rule required every word in a bare two-word name to be individually
+   identifying; a generic Indian name-part (Bano, Kaur, Begum, Singh, Devi -- the same list
+   `docs/DATASET.md` says "don't identify anyone on their own") correctly fails that check even
+   when paired with a real first name, so "Shabana Bano" released as "[PERSON] Bano". Traced via
+   `dev/truth.json`'s own FHIR narrative entities, not a synthetic case. Fixed to require only one
+   identifying word (matching the label/honorific/relation rules' existing logic), plus two
+   `tools/attack_lab` measurement fixes found while verifying it (bare-digit Aadhaar/phone
+   substring matching, missing word-boundary on name matching -- "Khan" was matching inside
+   "khansi", Hinglish for cough). Local A1 4.2% -> 0.0%, A3 23 -> 0 records with any candidate, A4
+   18.0% -> 0.0%, all reconfirmed across three different `RAKSHA_SECRET` values. 427 tests pass.
+6. ~~Ages never banded in free text or FHIR narratives~~ fixed (same pass): `apply_placeholders`
+   treats `GENERALIZE_AGE` spans as `KEEP` by design (a dev helper that predates O10's privacy
+   policy); `render_text`/`render_text_document`/`render_fhir_bundle` never applied any band before
+   calling it, so a discharge note's exact age survived while the same patient's CSV/JSON row
+   correctly banded it. Fixed by banding `GENERALIZE_AGE` spans before `apply_placeholders` runs,
+   same pattern as the existing `SHIFT_DATE` handling. Verified: both practice patients at age
+   95/97 (the ones also carrying the rare Rabies/Kala-azar diagnoses in open item 7) now show
+   "90+" in their discharge notes instead of the exact age.
+7. **A5 targeted attack, real risk re-measured: 5 of 14 real patients with a known fact (35.7%),
+   not the raw 10-11/18 headline figure.** Traced every "found" fact to the actual matched profile:
+   4 of the raw hits were a different real patient's profile matching by coincidence (same
+   hospital + a common condition or date, not the right person), and 1 was a decoy (a person who
+   never visited, which `docs/ATTACKS.md` scores separately as a membership-inference false
+   positive, not a successful re-identification) getting flagged by a coincidental date match.
+   Of the genuine 5: 2 are the rare-disease cases above (now age-banded too), 3 are common
+   conditions (TB, hypertension) that still narrow to one profile in this dataset's size despite
+   being shared by 6-12 profiles overall -- condition rarity alone does not explain why these
+   specific combinations are unique. Did not attempt a further diagnosis-text fix given the
+   earlier reverted attempt's lesson (real utility cost, unverified benefit); the hospital name is
+   kept intentionally as clinical data and is required by every one of the 5 genuine matches. This
+   remains the single largest known privacy gap, now accurately sized.
 5. ~~Review and merge `feature/engine-wiring` into `main`~~ done, see above.
 6. ~~Reconcile linking recall 0.84 vs 0.77~~ resolved: Omkar's pushed `31777f3`, measured on a clean
    checkout (`core.autocrlf=false`), gives precision 0.97, recall 0.84, F0.5 0.94 with 192 sanitized /
