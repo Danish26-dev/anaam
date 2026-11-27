@@ -1,333 +1,195 @@
 # Anaam
 
-Anaam is an offline privacy firewall for the Secret Wards privacy-engineering challenge. It reads heterogeneous hospital exports, removes or transforms identity-bearing data, preserves clinical values and formats, links records conservatively, and writes the evaluator contract:
+**An offline privacy firewall for Indian hospital records.** Anaam removes every patient
+identifier from CSV, TSV, JSON, FHIR R4 and free-text exports in English, Hindi and Hinglish,
+keeps every medical value intact, and links each patient's records across files and hospitals
+under one stable, non-reversible pseudonym. Built for Track 3, *Secret Wards*, of the
+Reinforce-SST Yugaantar DevForge challenge.
 
-```text
-output/
-├── sanitized/
-├── report.json
-└── records.jsonl
-```
+Rules, gazetteers, transliteration and context only — no LLM, no pretrained model, nothing
+trained on this data. Runs offline on one CPU with the Python standard library.
 
-## Current integration status
+## Why this approach
 
-Omkar's processing and privacy engine is implemented in this repository: preflight security, inventory and hashing, format detection/adapters, format-aware serialization, identity blocking/scoring/clustering, HMAC pseudonyms, date shifting, static generalization, report/manifest generation, and local A1/A3/A4/A5/A6/A7 attack tools.
+Off-the-shelf PII tools miss Hindi and Hinglish, break on Indian name structures (patronymics,
+honorifics, surname-first order), and do nothing against an attacker who already knows a
+patient's hospital and visit date. Anaam's core idea: **it learns each dataset's own identities
+before it redacts.** It classifies every column and JSON key from its actual values, harvests
+the names, IDs and villages it finds there, and catches the same identity again anywhere else —
+a different script, a nickname, a file name, a JSON key, a base64 attachment — even in formats
+and headers it has never seen before. A context-aware clinical shield keeps `Dolo 650 BD x 5
+days`, `1-0-1` and vitals from ever being mistaken for an identifier.
 
-Danish's detection engine is wired in through `src/detection/api.py`. It provides the clinical shield, multilingual PII detection, hidden channels and identity evidence. The independent release gate (`src/verify/`) checks every file before publication. On the practice data, `main.py` leaves 0 of 3,230 PII pieces visible (content channel), finds 0 of 4 canaries, keeps 4,497 of 4,497 medical values and links patients with precision 0.97, recall 0.82 and F0.5 0.94. The official `check_submission.py --run` reports READY TO SUBMIT under Linux and WSL. Numbers, the held-out test and their limits: `docs/EVALUATION.md`. `src/detection/stub_detector.py` is no longer used.
+## Results on the practice data
 
-## Requirements
+All numbers below are reproducible with `RAKSHA_SECRET=practice python main.py --input dev/input
+--output my_output`, then the Team Kit's `check_dev.py` and `check_submission.py --run`. They are
+development estimates on practice data, not the organisers' official score. Full methodology,
+every number re-measured and every limitation: [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
-- Python 3.10 or newer
-- No runtime network access
-- `RAKSHA_SECRET` set to a non-empty release secret
-- No external Python packages are currently required
+| Category | Result |
+|---|---|
+| Personal data leaked (content channel) | **0.0%** (0 of 3,230 pieces); 0 of 4 planted canaries |
+| Medical values preserved | **100%** (4,497 of 4,497) |
+| Patient linking | precision **0.97**, recall 0.82, F0.5 **0.94** (1 wrong merge in 817 records) |
+| Output contract | `CONTRACT OK`, `READY TO SUBMIT` |
+| Run time / memory | ~25 s, well under the 4 GB / 15-minute limit on 200 files |
 
-## Run
+**Re-identification resistance** (local attack-lab approximation of the organisers' attacker,
+unprotected copy → Anaam release):
 
-The official checkers ship with the Team Kit and are not copied into this repository. The commands
-below assume the kit is cloned next to this repository as `../Secret-Wards-ToolKit` (set `KIT` to
-another path if not).
+| Attack | Result |
+|---|---|
+| A1 — direct exposure of a name or ID | 33.8% → **0.0%** |
+| A3 — voter-list record linkage | 708 of 817 records matchable → **0 of 817** |
+| A4 — profile re-identification | 57.7% → **0.0%** (122 profiles) |
+| A5 — targeted attack (attacker already knows a fact) | **5 of 14 real patients (35.7%)** remain re-identifiable |
+| A6 — pseudonym inversion | 0 of 48 |
+| A7 — cross-release linkability | 0 of 817 stable pseudonyms |
 
-PowerShell:
-
-```powershell
-$KIT = "..\Secret-Wards-ToolKit"
-$env:RAKSHA_SECRET = "practice"
-python main.py --input $KIT\dev\input --output my_output
-python $KIT\validate_output.py --input $KIT\dev\input --output my_output
-python $KIT\check_dev.py --output my_output
-python $KIT\check_submission.py --repo . --run   # Linux or WSL; see docs/EVALUATION.md
-```
-
-Linux/macOS:
-
-```bash
-KIT=../Secret-Wards-ToolKit
-RAKSHA_SECRET=practice python main.py --input $KIT/dev/input --output my_output
-python3 $KIT/validate_output.py --input $KIT/dev/input --output my_output
-python3 $KIT/check_dev.py --output my_output
-python3 $KIT/check_submission.py --repo . --run
-```
-
-The output directory must be empty or absent. Anaam never modifies the input tree.
+A1/A3/A4 reaching 0% is real, verified across three different secrets — not a measurement
+artifact (the full trace, including two detection bugs we found and fixed along the way, is in
+`docs/EVALUATION.md` §8). **A5 is the one open gap**, concentrated in patients with a rare
+disease or an unusually long/short hospital stay, where the hospital name — kept deliberately,
+since it is clinical, not personal, information — combines with that one rare fact to narrow
+things down to a single person even after every direct identifier is gone. We tried suppressing
+rare diagnosis text to close this and reverted it: it damaged a non-patient reference document
+and flagged a common procedure as rare, for no measured benefit. We'd rather disclose a real,
+bounded gap than ship an unverified fix. Details: `docs/EVALUATION.md` §8, `docs/PROGRESS.md`
+open item 7.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    A[CLI and preflight] --> B[Sorted inventory and streaming SHA-256]
-    B --> C[Encoding and content-based format detection]
-    C --> D[CSV / TSV / JSON / text / FHIR adapters]
-    D --> E[Detection integration seam]
-    E --> F[IdentityEvidence]
-    F --> G[Bounded candidate blocking]
-    G --> H[Conflict-aware constrained clustering]
-    H --> I[HMAC pseudonyms and date offsets]
-    I --> J[Profile-consistent static privacy policy]
-    J --> K[Format-aware candidate writers]
-    K --> L[Independent verifier integration seam]
-    L --> M[sanitized/ + report.json + records.jsonl]
+```
+input/ ──► ingestion ──► detection ──► identity resolution ──► privacy layer ──► writers ──► release gate ──► output/
+           sniff format,  classify &    blocking, scoring,     date shift,       format-      re-check every
+           decode, hash   harvest       conflict-aware         age bands,        preserving    file; rescrub
+                           identities    clustering             k-location        CSV/JSON/      once, else
+                                                                 suppression       FHIR/text      quarantine
 ```
 
-### Shared contracts
+1. **Ingestion** — sorted, deterministic file walk; streaming SHA-256 per file (the only file
+   identity `report.json` uses); decodes UTF-8/16 (with and without BOM) and cp1252; detects
+   format from content, not extension (catches JSON saved with a `.csv` name). Anything empty,
+   truncated, undecodable, over-nested or unsupported is quarantined with a reason code, never
+   copied through half-cleaned.
+2. **Detection** — two passes. Pass one classifies every column/key from its header *and* values,
+   so a renamed header still works, and harvests an identity lexicon. Pass two finds every PII
+   span: Unicode/homoglyph normalization, Devanagari↔Latin transliteration keys (मोहम्मद, Mohammad,
+   Mohd and Md. all compare equal), checksum-aware Aadhaar/ABHA/PAN/phone detectors, and context
+   rules for names with no name list — labels, S/o·D/o·W/o, honorifics in all three scripts. A
+   clinical shield protects doses, frequencies, vitals, lab values, ICD codes, diagnoses,
+   complaints and doctors so they are never mistaken for identifiers. Hidden channels — base64,
+   `\u` escapes, percent/HTML-entity encoding, file names, CSV headers, JSON keys — are decoded,
+   scrubbed and re-encoded.
+3. **Identity resolution** — blocking on national IDs, scoped hospital IDs, phones, name+DOB,
+   name+relative and cross-script name+location. A pair links only on a shared strong identifier
+   or an exact name plus one supporting clue; a contradiction blocks the merge; weak evidence can
+   only ever join two unlinked singletons, so a chain of coincidental matches can never merge two
+   different people. An uncertain record gets `patient: null` rather than a risky guess.
+4. **Privacy layer** — one secret-keyed, non-zero date offset per patient (so a 9-day stay stays
+   exactly 9 days, and no single global shift can be recovered); 5-year age bands that always
+   contain the true age, applied consistently in structured fields *and* in free-text/FHIR
+   narrative text; location generalised from village → tehsil → district → suppressed once fewer
+   than 5 patients would share it.
+5. **Writers & release gate** — format-preserving CSV/TSV/JSON/text/FHIR R4 output. An
+   independent release gate re-reads every file afterward for residual PII, clinical data loss,
+   structural validity and pseudonym presence; a leak gets one automatic rescrub, and a file that
+   still fails is quarantined alone rather than risking the rest of the release.
 
-`src/core/interfaces.py` contains the frozen contracts used by both halves of Anaam:
-
-- `FileEnvelope`, `RecordEnvelope`, `FieldNode`
-- `SpanCandidate`, `ResolvedSpan`
-- `IdentityEvidence`, `ScopedIdentifier`, `ClusterAssignment`
-- `FieldTransformation`, `TransformPlan`, `VerificationResult`
-
-Raw identity evidence stays in memory and is never logged or written to the release. The live pipeline creates one `TransformPlan` per record; pseudonym, date offset, generalized-field edits, spans, and terminal status therefore share one integration contract.
-
-## Ingestion and formats
-
-- Input traversal is sorted by POSIX-style relative path for cross-platform determinism.
-- Every file is hashed with streaming SHA-256; duplicate paths remain separate inventory entries.
-- UTF-8, UTF-8 BOM, UTF-16 LE/BE, BOM-less UTF-16 with strong endian evidence, and cp1252 are supported.
-- Embedded UTF-16 BOMs, malformed JSON, extreme nesting, empty files, and unsupported extensions fail closed.
-- Content sniffing recognizes JSON hidden behind a `.csv` extension while preserving the original output path.
-- Supported release formats are CSV, TSV, JSON, plain text, and single-patient FHIR R4 document Bundles.
-- Unsupported XML, PDF, JPG, and multi-patient FHIR Bundles are quarantined rather than copied raw.
-
-## Identity resolution
-
-Candidate generation runs deterministic passes for:
-
-1. national identifiers;
-2. hospital-scoped MRN/UHID identifiers;
-3. phone numbers;
-4. canonical name plus DOB;
-5. canonical name plus relative;
-6. cross-script/upstream name variants plus location;
-7. phonetic residual candidates.
-
-High-frequency weak blocks are capped and skipped instead of creating quadratic work or unsafe merges. Strong-ID blocks use deterministic star expansion when large.
-
-Pair scoring applies the published rule: link on a shared strong identifier, or an exact canonical name plus a supporting clue. Contradictory national/scoped identifiers are hard conflicts. Gender, age, location, and relative mismatches are recorded as soft conflicts. `PROBABLE` edges may only join singleton clusters, so weak evidence cannot propagate through an A-B-C bridge. Before every merge, all cross-cluster evidence is checked directly for hard conflicts, even if a pair never shared a blocking key.
-
-Abstention is intentional: an unresolved record receives `patient: null` rather than a risky merge.
-Danish's detection and verification engine is also in this repository: the clinical shield, multilingual PII detection, the identity lexicon, hidden-channel sanitisation and the independent release verifier (see [Detection and verification engine](#detection-and-verification-engine) below).
-
-Identity evidence (names, relatives, national and scoped IDs, phones, DOB, age, gender, village) comes from the detection engine, which reads every field with its classified role. `main.py` calls the engine through `src/detection/api.py` (see `docs/INTERFACE_NOTES.md`).
-## Pseudonyms
-
-A linked cluster receives:
-
-```text
-fingerprint = SHA-256(sorted unique content anchors)
-digest      = HMAC-SHA256(pseudonym_key, "patient-v1|" + fingerprint)
-pseudonym   = "PSN-" + CrockfordBase32(digest)[:16]
-```
-
-Purpose-separated subkeys are derived from `RAKSHA_SECRET` for pseudonyms, date shifts, filename mapping, and optional temporary encryption. Exact duplicate files have distinct internal execution IDs but collapse to one content anchor for release identity, so adding a duplicate cannot change an existing pseudonym. Prefix collisions are detected and deterministically extended.
-
-## Date shifting
-
-- Every linked cluster receives one non-zero HMAC-derived offset.
-- Unlinked records derive deterministic offsets from duplicate-insensitive content anchors.
-- DD/MM/YYYY, DD/MM/YY, header-declared MM/DD/YYYY or MM/DD/YY, ISO dates, and FHIR date-times preserve their original syntax.
-- CSV rows, JSON records, free text, and FHIR resources use per-record/patient offsets.
-- A date mentioned inside ordinary free text -- a CSV notes cell, an unrecognized JSON string value, or FHIR narrative prose -- is shifted the same way a whole free-text document is, not only dates in a recognized date column/key.
-- Admission/discharge intervals and cross-event ordering remain unchanged.
-- A different release secret changes offsets.
-
-## Static privacy policy
-
-`config/policy.yaml` controls:
-
-- five-year age bands;
-- maximum date-shift range;
-- minimum location group size.
-
-CSV/TSV rows and JSON records (flat or nested, e.g. a registration record's `address.village`/`address.pin`) use one compatible plan per profile. Exact duplicate files do not inflate group counts. Location policy escalates from tehsil to district and then suppresses village, PIN, tehsil, and district when even district-level release is too rare. Generalized records are marked in `records.jsonl` and counted in `report.json`.
-
-The CSV header-role table and the JSON key-role table share one lookup (`core.header_roles.role_for_header`), so a renamed column and a renamed JSON key are recognized identically. This table is a conservative, exact-match lookup, not a classifier. A column it does not recognise is handled by the detection engine's field classifier, which redacts a village or reduces a PIN instead of generalising it.
-
-## FHIR handling
-
-For single-patient R4 document Bundles Anaam:
-
-- assigns the pseudonymous `Patient.id`;
-- removes patient identifier, name, telecom, address, birth date, contact, photo, and link fields;
-- removes `meta.source` values that may contain source MRNs/paths;
-- rewrites patient references at any nesting depth;
-- preserves opaque `urn:uuid` full URLs and resolvability;
-- sanitizes indexed narrative text and every other non-structural string through the detection engine;
-- shifts all recognized dates with one patient offset.
-
-Bundles with zero or multiple Patient resources fail closed until per-patient Bundle partitioning is implemented.
-
-## Path and filename privacy
-
-Filename and directory components containing phone-number or scoped hospital-ID shapes are replaced by secret-keyed HMAC names while preserving file extensions. `report.json` identifies input files only by SHA-256 and declares the new output path; it never contains original filenames.
-
-Before that mapping, the engine's `sanitize_path` removes names and identifiers from every path component and adds a keyed tag, so name-only file names are covered too.
+Pseudonyms are `PSN-` + a Crockford-Base32 HMAC-SHA256 digest of the linked cluster's content
+anchors, keyed by `RAKSHA_SECRET` — stable within one release, different under another secret,
+and not reversible without the secret (verified: 0 of 48 inversions attempted successfully).
 
 ## Security design
 
-- Missing/empty secrets fail before the output directory is created.
-- Input/output overlap and unsafe escaping symlinks are rejected.
-- Non-empty output directories are rejected to prevent stale-release mixing.
-- Python socket connect, UDP send, and DNS resolution are blocked in-process; the evaluator also denies network access externally.
-- Errors exposed to stdout/stderr contain safe reason codes only.
-- The secret and derived keys are never logged or serialized.
-- Unsupported or malformed inputs are quarantined, never copied into `sanitized/`.
-- A single file's rendering failure (a bad header, an unexpected structure, any unhandled exception) quarantines only that file. Anything it already queued in `records.jsonl`/`report.json` is rolled back first, so the rest of the release still completes instead of the whole run crashing.
-- All candidate bytes remain in memory until every file has rendered and passed CSV/JSON/FHIR structural checks; the complete `sanitized/` tree is then published by directory rename.
-- `report.json` and `records.jsonl` use atomic temporary-file replacement, and temporary files are removed on failure.
-- Output filenames, reports, manifests, stdout, and stderr avoid raw input paths.
+- No run without a non-empty `RAKSHA_SECRET`; no run into a non-empty output directory.
+- All network calls (socket connect, UDP, DNS) are blocked in-process.
+- The secret and its derived subkeys are never logged, printed or serialized.
+- Nothing partially processed ever touches disk: candidates stay in memory until every file has
+  rendered and passed its structural checks, then the whole release is published by one atomic
+  directory rename. A single file's failure rolls back only that file and quarantines it; the
+  rest of the release still completes.
+- `report.json` and `records.jsonl` are written by atomic temp-file replacement.
+- No data is encrypted at rest because none is ever written at rest in the first place — there is
+  nothing unencrypted on disk to protect. A reserved `temp_key` subkey exists for a future staging
+  step, unused today.
+
+## Run it
+
+```powershell
+$env:RAKSHA_SECRET = "practice"
+python main.py --input <input-dir> --output <empty-output-dir>
+```
+
+Requires Python 3.10+, no third-party packages, no network access. The output directory must be
+empty or absent; Anaam never modifies the input. Validate with the Team Kit's own checkers:
+
+```bash
+python3 validate_output.py --input <input-dir> --output <output-dir>   # expect: CONTRACT OK
+python3 check_submission.py --repo <this-repo> --run                   # expect: READY TO SUBMIT
+```
 
 ## Tests
 
-A standard-library-only `unittest` suite covers the highest-risk logic: date-shift syntax/interval preservation and keying, identity clustering's hard-conflict and transitive-bridge guards, pseudonym order/duplicate insensitivity and secret-sensitivity, the shared header-role table, JSON/FHIR generalization and free-text date shifting, FHIR narrative indexing, and atomic candidate publication/structural validation.
+427 standard-library `unittest`/pytest tests across the pipeline and detection engine:
 
 ```powershell
-python -m unittest discover -s tests
+python -m unittest discover -s tests          # 76 tests, pipeline logic, stdlib only
+pip install -r requirements-dev.txt
+python -m pytest tests/engine -q               # 351 tests, detection/verification engine
 ```
 
-No pytest or other third-party test runner is required.
+Covers date-shift interval preservation, clustering's hard-conflict and anti-chain-merge guards,
+pseudonym stability and secret-sensitivity, cross-script name detection, clinical-shield
+preservation, FHIR reference rewriting, and atomic publication.
 
-## Local attack lab
+## Local attack simulator
 
-These tools read practice-only attacker/truth files and are never imported by `main.py`:
+`tools/attack_lab/` approximates the organisers' documented attacker (`docs/ATTACKS.md`) against
+the practice data only — never imported by `main.py`, never available at evaluation time. Used to
+produce every number in the results table above.
 
 ```powershell
 python tools\attack_lab\run_attacks.py --output my_output --attacker dev\attacker
 python tools\attack_lab\run_inversion.py --output my_output --truth dev\truth\truth.json
-python tools\attack_lab\run_cross_release.py --release-a release_a --release-b release_b
 ```
-
-Implemented local measurements:
-
-- A1 direct exposure, including output filenames;
-- A3 record linkage with skip-empty filtering;
-- A4 maximal profile aggregation through pseudonyms and surviving references;
-- A5 known-facts matching and high-confidence global-shift recovery;
-- A6 unkeyed pseudonym-transform inversion;
-- A7 source-keyed cross-release pseudonym/date stability.
-
-They are directional local measurements, not official scores.
-
-## Determinism and measured pipeline checks
-
-On the bundled 200-file practice dataset, Omkar's pipeline currently:
-
-- prints `CONTRACT OK`;
-- accounts for all 200 input files;
-- sanitizes 193 and quarantines 7 malformed/unsupported files;
-- preserves 4,855/4,855 medical probes when outputs are resolved using actual input hashes;
-- produces byte-identical `sanitized/` and `records.jsonl` across same-secret runs;
-- compares all 817 records across different-secret releases with zero unmatched records and zero stable pseudonyms;
-- leaves 1.6% coincidentally stable date pairs in the local A7 approximation;
-- copies zero unsupported files raw;
-- passes `python -m unittest discover -s tests` (76 unit tests, standard library only).
-
-These pipeline checks were measured before the engine was wired in. With the engine, the contract, file accounting and determinism results are the same (`docs/EVALUATION.md` section 7), and the local A7 approximation shows 3.3% coincidentally stable date pairs.
-
-## Detection and verification engine
-
-Implemented by Danish in `src/detection/` and `src/verify/`, with 351 tests in `tests/engine/`.
-`main.py` calls it through `src/detection/api.py` (call order and span policy: `docs/INTERFACE_NOTES.md`).
-
-| Module | What it does |
-|---|---|
-| `normalization.py`, `transliteration.py` | NFKC, zero-width, homoglyph, Indic-digit and diacritic folding with offsets mapped back to the original; Devanagari to Latin and cross-script name keys (Mohammad, Mohd, Md., मोहम्मद compare equal) |
-| `clinical*.py` | Clinical Shield: medicines with dose, frequency and duration chains, vitals, labs with units, ICD codes, diagnoses, eponyms, procedures, complaints, history clauses, doctors, wards, hospitals |
-| `identifiers.py`, `dates.py`, `address.py` | phones in every format, Aadhaar, ABHA, PAN, insurance and hospital IDs (labelled, shaped, learned templates), dates and ages, address components with a whitelist line classifier |
-| `names.py` | context rules for names in English, Devanagari and Hinglish without a name list (labels, S/o W/o C/O, honorifics, time-log and sender lines), so unseen names and canaries are found |
-| `identity_lexicon.py` | names, IDs and villages harvested from structured columns, then found again across scripts and spellings |
-| `field_classifier.py` | classifies CSV columns and JSON keys from headers and values, so renamed headers still work |
-| `span_resolver.py` | direct ID > explicit name > date or age > clinical protection > weak guess |
-| `attachments.py`, `engine.py` | base64, `\u`, percent and HTML-entity payloads decoded, scrubbed and re-encoded; file names, CSV headers and JSON keys renamed only on strong evidence |
-| `src/verify/` | independent release gate: known patient values (including inside payloads), residual detection, clinical loss, CSV/JSON shape, FHIR references, pseudonym presence; rescrub once, then quarantine; abort only on release-level breakage; findings carry codes, never values |
-
-Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII pieces visible on the practice data in Latin, Devanagari and Hinglish and in every hiding place, 0 of 4 canaries, 4,855 of 4,855 medical values. On two sealed held-out chaos seeds (unseen names, labels, ID shapes and date formats, run once with no tuning afterwards): 1 of 826 PII pieces visible and all medical values kept. Linking accuracy there is not measured (the generator writes no patient labels). CSV/TSV records with unseen identity headers now carry a pseudonym through the field-classifier fallback (CSV 16/16, TSV 12/16). The generator was written by the same author as the rules, so it is a weaker test than third-party data. Details and limits: `docs/EVALUATION.md`.
-
-Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
 
 ## Known limitations
-- **Targeted attack (local A5): 5 of 14 real patients with a known fact (35.7%)** are genuinely
-  re-identified once decoy and wrong-person coincidences are excluded from the raw local figure
-  (10-12 of 18). Concentrated in hospital name + a rare condition (shared by 1 of 122 profiles) or
-  an exact stay length; the hospital name is kept intentionally as clinical, non-identifying data.
-  A blanket rare-diagnosis-suppression attempt was built, tested and reverted after it damaged a
-  non-patient reference document with no measured benefit (`docs/PROGRESS.md`). This is now the
-  largest known privacy gap: local A1/A3/A4 are all 0.0% (A4 was 51-58%, traced mostly to local
-  attack-tool measurement bugs and one real bigram-name detection gap, all fixed --
-  `docs/EVALUATION.md` §8).
-- On unseen formats, CSV/TSV identity columns fall back to the engine's field classifier when
-  `core.header_roles`'s fixed header table does not recognise the column (verified 0/8 -> 8/8 CSV,
-  0/8 -> 6/8 TSV on generated unseen-header samples; held-out seeds: CSV 16/16, TSV 12/16). Linking
-  accuracy on the sealed chaos seeds is still not measured, because that generator writes no
-  patient labels.
-- Record-level rare-condition suppression depends on clinical risk flags from Danish's side and is not implemented.
-- Multi-patient FHIR Bundles are quarantined rather than partitioned.
-- FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource
-  type) are not passed through O10's structured village/PIN generalization. FHIR narrative text
-  ages are banded (fixed alongside free-text documents, see `docs/EVALUATION.md` §8).
-- `report.json` shows `peak_rss_mb: 0.0` on Windows (no `resource` module); on Linux it is measured (47 MB on the practice data).
 
-## Release Studio (demo frontend)
+- **A5 targeted-attack risk (35.7% of real patients with a known fact)** is the one open privacy
+  gap, structural to keeping hospital names and exact intervals for clinical usefulness. See above.
+- Multi-patient FHIR Bundles are quarantined rather than split into one release per patient.
+- FHIR resources other than `Patient` are not passed through structured village/PIN
+  generalisation (narrative text ages are banded; other structured fields on non-Patient
+  resources are not).
+- Our held-out tests were generated by the same team that wrote the detection rules, so they are
+  a weaker check than genuinely unseen third-party data.
 
-A local product interface for the demo: a landing page (`/`) and a seven-screen research release
-workspace, each screen with a Three.js view bound to the release's real results:
+Full detail, every historical finding and every reverted attempt: [`docs/PROGRESS.md`](docs/PROGRESS.md),
+[`docs/EVALUATION.md`](docs/EVALUATION.md), [`docs/SECURITY.md`](docs/SECURITY.md).
 
-| Route | Screen |
-|---|---|
-| `/workspace` | Command Centre: release overview, next recommended action, operations queue |
-| `/intake` | Source Intake: hospitals, files, formats, encodings, quarantine reasons |
-| `/identity` | Identity Resolution: linked patients across sources, records released unlinked |
-| `/protection` | Privacy Protection: placeholders, pseudonyms, renamed paths and keys, residual re-scan |
-| `/clinical-integrity` | Clinical Integrity: clinical values before and after, by category |
-| `/risk` | Privacy Risk: local attack lab, protected release vs an unprotected copy (practice data only) |
-| `/assurance` | Release Assurance: seven verification layers and human authorisation |
+## Project layout
 
-It is optional: the evaluator runs only `main.py`, and nothing in the Studio changes the engine. Old
-`/studio/*` links redirect to the new routes.
-
-```bash
-cd frontend && npm install && npm run build && cd ..          # once; needs Node 18+ (dev time only)
-python tools/studio/evidence.py --holdout                     # optional: measured practice evidence
-python tools/studio/server.py                                 # http://127.0.0.1:8765
+```
+main.py                 entry point: python main.py --input {input} --output {output}
+config/policy.yaml       privacy rules: age-band width, date-shift range, min location group size
+raksha.toml              submission manifest (team name, setup, run command)
+src/core/                shared contracts, keys, preflight, network guard
+src/ingest/              format sniffing, decoding, per-format adapters
+src/detection/           multilingual PII detection, clinical shield, field classification
+src/identity/            blocking, scoring, conflict-aware clustering
+src/privacy/             pseudonyms, date shifting, age/location generalisation
+src/export/              format-preserving writers (CSV, JSON, FHIR, text)
+src/verify/              independent release gate
+tests/                   pipeline unit tests (unittest) and engine tests (pytest)
+tools/attack_lab/        local re-identification attack simulator (dev-only)
+tools/chaos/, tools/bench/, tools/audit/  dataset generation, benchmarking, repo hygiene
+docs/BRIEF.md            source for the submitted 2-page Project Brief (docs/brief.pdf)
+docs/EVALUATION.md       every measurement, with method and date
+frontend/, tools/studio/ optional demo UI; not used by the evaluator
 ```
 
-- `tools/studio/server.py` (standard library) serves the built frontend and runs releases by calling
-  the unchanged `main.py` as a subprocess. It binds to 127.0.0.1 only and rejects non-localhost Host
-  headers, sends no CORS headers and sets a strict CSP. Uploaded inputs are deleted after each run,
-  also on failure, and only released output, `report.json` and `records.jsonl` are served.
-  `RAKSHA_SECRET` comes from its environment (or a random per-session value) and is never returned
-  or logged.
-- After `main.py`, the server runs the organiser's `validate_output.py` (from the kit folder), an
-  independent residual re-scan, structure checks, a clinical before/after count and the release-wide
-  check `verify.release.ReleaseGate.verify_release`. A release shows VERIFIED only if every check ran
-  and passed.
-- `tools/studio/evidence.py` measures the practice data with the organiser's checkers and the attack
-  lab (also against an unprotected copy as the baseline) and writes counts only to
-  `out/studio/evidence.json`, which is git-ignored.
-- `tools/studio/record_demo.py` builds the **synthetic** demo workspace (`tools/studio/demo_data.py`:
-  four fictional hospitals, five invented patients), runs the real CLI on it and records the
-  result as `frontend/src/fixtures/demo-release.json`. Every screen labels its source: SYNTHETIC
-  DEMO, PRACTICE EVALUATION or LOCAL RELEASE.
-- `POST /api/inspect` runs the pipeline's own encoding, format and delimiter sniffers on a file
-  before a release (in memory; nothing is written).
-- The next recommended action comes from fixed rules in `frontend/src/state/actions.ts` over one
-  derived release model (`frontend/src/state/model.ts`). No model or network is involved.
-- Anaam never confirms a match, dismisses a finding or authorises a release by itself. A person
-  records each review with a note, and authorisation requires every layer passed, every finding
-  reviewed and an explicit confirmation. These decisions stay in the tab's memory only, never in
-  browser storage, and are lost on reload.
-- The frontend makes no third-party requests. It uses local system fonts, no analytics and no
-  browser storage. File names typed by the user stay in the tab's memory. 3D views fall back to
-  text without WebGL and stop animating under reduced motion.
+## Team
 
-## Submission configuration
-
-`raksha.toml` is at the repository root:
-
-```toml
-[submission]
-name  = "anaam"
-setup = "pip install -r requirements.txt"
-run   = "python main.py --input {input} --output {output}"
-```
+Md Danish Ali, Omkar L Kulkarni — Track 3, Secret Wards.
