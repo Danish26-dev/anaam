@@ -73,20 +73,30 @@ def _house_number_in_address_context(text_lower: str, house: str) -> bool:
     return False
 
 
+def _contains_word(text_lower: str, phrase: str) -> bool:
+    """Whole-word/whole-phrase containment: a plain substring check lets a short name
+    token match inside an unrelated longer word (e.g. the surname "Khan" matching
+    inside the Hinglish complaint word "khansi", cough) or inside a name that merely
+    starts the same way ("Ravi" inside "Ravinder"). Word boundaries on both ends of the
+    phrase close that gap without needing a full tokenizer.
+    """
+    return re.search(rf"\b{re.escape(phrase)}\b", text_lower) is not None
+
+
 def _candidate_score(text_lower: str, person: RegistryPerson) -> float:
     text_lower = _mask_doctor_names_cached(text_lower)
     score = 0.0
     full_name = person.name.strip().casefold()
     name_tokens = full_name.split()
-    if full_name and full_name in text_lower:
+    if full_name and _contains_word(text_lower, full_name):
         score += _NAME_FULL_WEIGHT
     else:
-        if name_tokens and len(name_tokens[0]) > 2 and name_tokens[0] in text_lower:
+        if name_tokens and len(name_tokens[0]) > 2 and _contains_word(text_lower, name_tokens[0]):
             score += _NAME_GIVEN_WEIGHT
-        if len(name_tokens) > 1 and len(name_tokens[-1]) > 2 and name_tokens[-1] in text_lower:
+        if len(name_tokens) > 1 and len(name_tokens[-1]) > 2 and _contains_word(text_lower, name_tokens[-1]):
             score += _NAME_SURNAME_WEIGHT
     relative = person.relative_name.strip().casefold()
-    if relative and len(relative) > 2 and relative in text_lower:
+    if relative and len(relative) > 2 and _contains_word(text_lower, relative):
         score += _RELATIVE_WEIGHT
     house = person.house_no.strip().casefold()
     if house and _house_number_in_address_context(text_lower, house):
@@ -113,7 +123,7 @@ def _registry_values_in_text(
         for person in registry
         if str(getattr(person, attribute)).strip()
     }
-    return {value for value in values if len(value) > 2 and value in text_lower}
+    return {value for value in values if len(value) > 2 and _contains_word(text_lower, value)}
 
 
 @dataclass

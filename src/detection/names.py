@@ -266,6 +266,18 @@ def detect_names(text: str) -> list[c.SpanCandidate]:
         if _DOCTOR_BEFORE.search(text[max(0, m.start() - 8):m.start()]):
             continue
         toks = m.group("name").split()
-        if all(_is_identifying(t) for t in toks):
+        # Requiring every token to be individually identifying rejected a real name
+        # whenever its second token was a generic name-part on its own (docs/DATASET.md:
+        # "Devi, Kumar, Md. and ji don't identify anyone on their own" -- but "Shabana
+        # Bano" together is a specific person, same as the label/relation/honorific
+        # paths above already treat it via trim_name's "keep if ANY token identifies,
+        # allow a generic token to ride along" rule). A plain common word (NON_NAME) in
+        # the bigram still rejects it outright, so "General Hospital"-shaped false
+        # positives stay excluded; only a generic NAME PART bypasses the all() check.
+        def _generic_part(tok: str) -> bool:
+            t = tok.strip(".,:;").casefold()
+            return t in GENERIC_NAME_TOKENS or t in GENERIC_NAME_TOKENS_DEVA
+
+        if all(_is_identifying(t) or _generic_part(t) for t in toks) and any(_is_identifying(t) for t in toks):
             add(m.start("name"), m.end("name"), c.PERSON_NAME, "bigram", c.TIER_WEAK, 0.5)
     return out
