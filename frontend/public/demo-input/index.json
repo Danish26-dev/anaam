@@ -1,9 +1,10 @@
 [
-  "arogya_diagnostics/fhir_bundle_0209.json",
-  "arogya_diagnostics/lab_results.tsv",
-  "navjeevan_nursing_home/discharge_Ritika_Venkataraman.txt",
-  "navjeevan_nursing_home/nursing_note_ward3.txt",
-  "sahyog_district_hospital/opd_visits.json",
-  "sahyog_district_hospital/opd_visits_partial.json",
-  "sahyog_district_hospital/registration_feb2026.csv"
+  "city_civil_hospital/nursing_note_ward3.txt",
+  "district_medical_centre/discharge_Ritika_Venkataraman.txt",
+  "district_medical_centre/prescriptions_legacy_2019.tsv",
+  "regional_health_institute/fhir_bundle_0209.json",
+  "regional_health_institute/lab_results.tsv",
+  "yugaantar_general_hospital/opd_visits.json",
+  "yugaantar_general_hospital/opd_visits_partial.json",
+  "yugaantar_general_hospital/registration_feb2026.csv"
 ]

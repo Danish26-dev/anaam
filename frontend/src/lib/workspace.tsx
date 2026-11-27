@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import demoFixture from "../fixtures/demo-release.json";
+import { deriveActions, nextAction, readiness, type Decisions } from "../state/actions";
+import { buildModel } from "../state/model";
 import { api } from "./api";
 import type { DemoFixture, Evidence, Health, ReleaseSummary, ReleaseView } from "./types";
 
@@ -30,6 +32,11 @@ function liveView(s: ReleaseSummary, names: Record<string, string>): ReleaseView
 }
 
 interface Ctx {
+  decisions: Record<string, Decisions>;
+  review: (releaseId: string, actionId: string, note: string) => void;
+  unreview: (releaseId: string, actionId: string) => void;
+  authorise: (releaseId: string) => void;
+  revokeAuthorisation: (releaseId: string) => void;
   health: Health | null;           // null: Studio server not reachable (static demo only)
   serverChecked: boolean;
   evidence: Evidence | null;
@@ -48,6 +55,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [live, setLive] = useState<ReleaseSummary[]>([]);
   const [selected, setSelected] = useState<string>("synthetic-demo");
+  // human decisions per release: in memory only (never browser storage), lost on reload by design
+  const [decisions, setDecisions] = useState<Record<string, Decisions>>({});
   // file names typed by this browser's user, kept in memory only (never persisted, never sent)
   const names = useRef<Record<string, Record<string, string>>>({});
   const [nameVersion, bump] = useState(0);
@@ -87,7 +96,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const current = releases.find((r) => r.id === selected) ?? releases[releases.length - 1];
 
+  const patch = (id: string, f: (d: Decisions) => Decisions) =>
+    setDecisions((all) => ({ ...all, [id]: f(all[id] ?? EMPTY) }));
   const value: Ctx = {
+    decisions,
+    review: (id, actionId, note) => patch(id, (d) => ({ ...d, reviewed: { ...d.reviewed, [actionId]: { at: new Date().toISOString(), note } } })),
+    unreview: (id, actionId) => patch(id, (d) => { const r = { ...d.reviewed }; delete r[actionId]; return { ...d, reviewed: r, authorisedAt: null }; }),
+    authorise: (id) => patch(id, (d) => ({ ...d, authorisedAt: new Date().toISOString() })),
+    revokeAuthorisation: (id) => patch(id, (d) => ({ ...d, authorisedAt: null })),
     health, serverChecked, evidence, releases, current,
     select: setSelected,
     registerNames: (id, n) => {
@@ -103,6 +119,26 @@ export function useWorkspace(): Ctx {
   const c = useContext(WorkspaceContext);
   if (!c) throw new Error("WorkspaceProvider missing");
   return c;
+}
+
+const EMPTY: Decisions = { reviewed: {}, authorisedAt: null };
+
+/** The selected release as every screen sees it: one model, one action list, one readiness. */
+export function useRelease() {
+  const ws = useWorkspace();
+  const view = ws.current;
+  const model = useMemo(() => buildModel(view), [view]);
+  const actions = useMemo(() => deriveActions(model), [model]);
+  const decisions = ws.decisions[view.id] ?? EMPTY;
+  const ready = readiness(model, actions, decisions);
+  const next = nextAction(model, actions, decisions, ready);
+  return {
+    ...ws, view, model, actions, decisions, readiness: ready, next,
+    review: (actionId: string, note: string) => ws.review(view.id, actionId, note),
+    unreview: (actionId: string) => ws.unreview(view.id, actionId),
+    authorise: () => ws.authorise(view.id),
+    revokeAuthorisation: () => ws.revokeAuthorisation(view.id),
+  };
 }
 
 export const SOURCE_LABEL: Record<ReleaseView["source"], string> = {

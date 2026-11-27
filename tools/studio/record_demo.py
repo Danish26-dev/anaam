@@ -52,7 +52,7 @@ def main() -> int:
     server.STATE["secret"] = DEMO_SECRET
     summary = {
         "id": "synthetic-demo", "source": "demo",
-        "label": "Synthetic demo workspace: 3 fictional hospitals, 5 invented patients",
+        "label": "Synthetic demo workspace: 4 fictional hospitals, 5 invented patients",
         "created_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "status": "complete",
         "files_uploaded": sum(1 for p in inp.rglob("*") if p.is_file()),
         "pipeline": {"exit_code": 0, "seconds": round((dt.datetime.now() - t0).total_seconds(), 2),
