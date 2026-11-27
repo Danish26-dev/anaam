@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Callable
 
 from .common import ReleaseRecord, RegistryPerson, extract_age_candidates, extract_pins
@@ -23,8 +24,57 @@ _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+", re.IGNORECASE)
 _MASKED_AADHAAR_RE = re.compile(r"(?:X[\s-]*){8}(\d{4})", re.IGNORECASE)
 _GENDER_RE = re.compile(r"(?:\b(?:gender|sex)\s*[:=]\s*|\d{1,3}\s*[/|]\s*)([MF])\b", re.IGNORECASE)
 
+# docs/ATTACKS.md: "names via transliteration-aware token lookup (doctors after `Dr.`
+# are skipped)". A doctor line keeps "Dr. Ramesh Srivastava" by design (the clinical
+# shield protects doctor names), and a token match against that name is not a patient
+# identifier leak. Mask out the word(s) immediately after a doctor honorific so a
+# registry name collision there cannot contribute to a candidate's score, mirroring the
+# documented attacker rather than the weaker approximation this file shipped with.
+_DOCTOR_LINE_RE = re.compile(
+    r"\b(?:dr\.?|doctor|seen\s+by|referred\s+by|consultant)\s*[:\-]?\s*"
+    r"([a-z][a-z.']*(?:\s+[a-z][a-z.']*){0,3})",
+    re.IGNORECASE,
+)
+
+
+def _mask_doctor_names(text_lower: str) -> str:
+    return _DOCTOR_LINE_RE.sub(lambda m: m.group(0)[: m.start(1) - m.start(0)] + "\u2022" * len(m.group(1)), text_lower)
+
+
+# One record's text is scored against every registry candidate in a tight loop (A3 and
+# A4 both do this); re-running the doctor-masking regex per candidate would be wasted
+# work on the same string, so cache it by identity of the input text for this process.
+_mask_doctor_names_cached = lru_cache(maxsize=512)(_mask_doctor_names)
+
+# docs/ATTACKS.md: the attacker reads "(field, value) pairs (CSV header -> cell, JSON key
+# -> leaf, free text)" and extracts evidence FROM THOSE FIELDS, not by scanning raw
+# digits anywhere in the pooled text. A bare house number (e.g. "167") coincidentally
+# equal to a lab value, a dose, an HbA1c result or a day count is not address evidence,
+# and crediting it as one let a single clinical-number coincidence alone cross the
+# re-identification confidence threshold on records with no real address present at all
+# (see docs/PROGRESS.md "house-number signal" finding). Require the match to sit near an
+# address-shaped label, same restriction the field-aware attacker would have for a
+# free-text line and the only place CSV/JSON house-like fields appear in the flattened
+# "key: value" text this tool's records are built from (see load_release.py).
+_ADDRESS_CONTEXT_RE = re.compile(
+    r"(?:h\.?\s*no\.?|house(?:\s*no\.?)?|makan|plot(?:\s*no\.?)?|flat(?:\s*no\.?)?|"
+    r"door\s*no\.?|qr\.?\s*no\.?|quarter(?:\s*no\.?)?|ghar(?:\s*no\.?)?|address|"
+    r"pata|house_no|house_number|plot_no)\s*[:\-.]?\s*$",
+    re.IGNORECASE,
+)
+_HOUSE_CONTEXT_WINDOW = 24  # chars of context immediately before the matched number
+
+
+def _house_number_in_address_context(text_lower: str, house: str) -> bool:
+    for match in re.finditer(rf"\b{re.escape(house)}\b", text_lower):
+        window_start = max(0, match.start() - _HOUSE_CONTEXT_WINDOW)
+        if _ADDRESS_CONTEXT_RE.search(text_lower[window_start:match.start()]):
+            return True
+    return False
+
 
 def _candidate_score(text_lower: str, person: RegistryPerson) -> float:
+    text_lower = _mask_doctor_names_cached(text_lower)
     score = 0.0
     full_name = person.name.strip().casefold()
     name_tokens = full_name.split()
@@ -39,7 +89,7 @@ def _candidate_score(text_lower: str, person: RegistryPerson) -> float:
     if relative and len(relative) > 2 and relative in text_lower:
         score += _RELATIVE_WEIGHT
     house = person.house_no.strip().casefold()
-    if house and re.search(rf"\b{re.escape(house)}\b", text_lower):
+    if house and _house_number_in_address_context(text_lower, house):
         score += _HOUSE_WEIGHT
     return score
 

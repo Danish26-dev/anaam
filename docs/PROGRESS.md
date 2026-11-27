@@ -153,16 +153,34 @@ not just the test suite:
    `export/json_writer.py` find no identity column. Verified with `tools/chaos/generate.py` unseen
    names/headers: CSV linking 0/8 -> 8/8, TSV 0/8 -> 6/8, reconfirmed on a fresh clone of
    `origin/main`.
-2. Local A4 profile re-identification at ~58% (122-record denominator after the linking fix above
-   widened the pooled attack surface; 18.7% once the house-number measurement noise is excluded);
-   not moved by the policy knobs. Attempted a targeted fix (rare-diagnosis suppression, a new
-   `src/privacy/rare_evidence.py`, built and unit-tested in isolation, never committed): wiring it
-   into `main.py` and the verifier's baseline restored `CONTRACT OK` but measured zero
-   change in local A4/A5 numbers while suppressing text inside a non-patient reference document and
-   a common procedure name flagged rare only by small sample size. Reverted in full rather than ship
-   an unverified change. Related: A5 shows linked pseudonyms let an attacker pool known facts across
-   a patient's records more effectively than on an unprotected copy (9/18 vs 5/18) -- a real adverse
-   effect of linking that still needs its own fix in the privacy layer.
+2. ~~Local A4 profile re-identification at ~58%~~ was mostly a flaw in our own local attacker
+   (`tools/attack_lab`), not in Anaam: `_candidate_score` matched a registry house number as a bare
+   digit anywhere in a profile's pooled text (a dose, an HbA1c value, a day count), with no
+   requirement that it sit in an address-shaped field the way `docs/ATTACKS.md`'s documented
+   attacker reads "(field, value) pairs". Traced 45 of 49 patient-linked hits to this exact
+   degenerate case: exactly one registry candidate scored above zero (usually from this coincidence
+   alone), so `top/total` reported 100% confidence regardless of how weak that single match was.
+   Also found 10 hits driven by a doctor's name (e.g. "Dr. Ramesh Srivastava", correctly *kept* by
+   the clinical shield) scored as a patient-name match, because the local tool's given/surname
+   matcher does not skip names after "Dr." the way `docs/ATTACKS.md` says the real attacker does.
+   Fixed both in `tools/attack_lab/a3_linkage.py` only (dev tooling, never imported by `main.py`,
+   no change to the submitted pipeline or its output): house-number matches now require
+   address-shaped context within 24 characters before the digits, and names following a doctor
+   honorism are masked out before scoring. Local A4 dropped from 58.2% to **17.2%** (122 profiles),
+   in line with the organisers' own reference implementation (16.7%, `docs/ATTACKS.md` example
+   table) and the earlier house-number-excluded diagnostic estimate (18.7%). The remaining 21
+   patient-linked hits trace to genuine surname-token overlaps between a doctor's name and an
+   unrelated registry surname, and to FHIR bundle metadata noise -- not to an address or identity
+   leak. A5 moved 50.0% -> 55.6% (9/18 -> 10/18) in the same run; traced each "found" fact and
+   confirmed none used identity linkage at all (hospital name + rare-condition-hint text match
+   only, `linked_rid` was `None` in every case) -- the house-number fix does not touch this path, the
+   move is noise on an 18-fact sample. A5's structural exposure (hospital name kept, as intended,
+   plus a rare condition hint or an exact stay length) is unchanged and still needs its own fix if
+   pursued; linked pseudonyms let an attacker pool known facts across a patient's records more
+   effectively than on an unprotected copy. We did not re-attempt the earlier reverted
+   rare-diagnosis-suppression approach (zero measured benefit, real false positives, see history
+   above) -- the A4 number it was aimed at turned out to be substantially a measurement artifact,
+   not a real gap needing that fix.
 3. ~~Practice values in two pipeline docstrings and two pipeline test files~~ fixed, audit now clean
    (`identity=0` on both sides' independent fixes). Kit scripts (`check_dev.py`,
    `check_submission.py`, `validate_output.py`) were removed from `main` in the Release Studio
