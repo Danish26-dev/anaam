@@ -11,7 +11,10 @@ Decisions that the official documents do not settle, or where they disagree.
    record. `PSN-` plus a Crockford-base32 HMAC value is proposed. Not implemented here.
 3. **Generic name parts** (Kaur, Singh, Devi, Kumar, Khatoon, ji, sahab and their Devanagari spellings)
    are not treated as identifying, matching the scorer's description, but are removed when they are part
-   of a detected name span.
+   of a detected name span. This assumption had a real gap in the unlabeled two-word ("bigram") name
+   rule, which required every word to individually be identifying rather than just one of them, so
+   "Shabana Bano" (a real first name plus a generic surname part) released as "[PERSON] Bano" --
+   fixed; see `docs/EVALUATION.md` §8.
 4. **A doctor's full name without "Dr."** (for example in a gate log) is kept when that full name was
    harvested as a doctor from a doctor field or "Dr." line. A bare first name shared with a relative is
    still redacted.
@@ -42,4 +45,6 @@ Decisions that the official documents do not settle, or where they disagree.
 15. **Two test runners.** Pipeline tests use the standard library (`unittest`); engine tests use pytest
    and live in `tests/engine/`, a directory without `__init__.py` that `unittest discover` skips.
 12. **Sealed holdout** must be authored by someone other than the detector's author, with different templates, and used once.
-13. **Brief PDF** (2 pages, `docs/brief.pdf`) is not started.
+13. ~~**Brief PDF** (2 pages, `docs/brief.pdf`) is not started.~~ `docs/brief.pdf` exists and
+   `check_submission.py --run` finds it; `docs/BRIEF.md` is kept current as the source it renders
+   from (most recently updated alongside the fixes in `docs/EVALUATION.md` §8).

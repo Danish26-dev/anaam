@@ -14,7 +14,10 @@ protect the release until the engine is wired into `main.py`.**
 ## Attackers
 
 1. The organisers' automated attacker: has a voter-style registry, partial known facts, and the
-   sanitised release. Resistance is **not measured** yet (linkage, shifts and generalisation are not in this repo).
+   sanitised release. Not the real evaluator, but a local approximation of it is now measured by
+   `tools/attack_lab` and reported in `docs/EVALUATION.md` §5 and §8: direct exposure, record
+   linkage and profile re-identification are at or near 0% locally; the targeted-known-facts
+   attack (A5) remains the largest measured gap at 35.7% of real patients with a known fact.
 2. A reader of logs, temp files, the report and error messages.
 3. A server breach: input, output, caches and temp files exposed. At-rest encryption is **not implemented**.
 
@@ -51,7 +54,11 @@ practice data only).
   classification alone.
 - **Generalisations are allowed through:** dates, ages, DOB, tehsil and district are not flagged by the
   verifier; the privacy layer owns them. A full 6-digit PIN is flagged unless `allow_full_pin` is set.
-- **Re-identification:** rare diagnoses plus a narrow age band can still single out a person; not addressed here.
+- **Re-identification:** rare diagnoses plus a hospital name can still single out a person even with
+  exact ages banded (now also fixed in free text and FHIR narratives, `docs/EVALUATION.md` §8).
+  Measured locally at 35.7% of real patients with a known fact (`docs/PROGRESS.md` open item 7);
+  not addressed further here, since the hospital name is kept intentionally as clinical data and
+  further diagnosis suppression was tried once and reverted for real false positives.
 - **Date shifting:** a known original date of a re-identified patient would reveal that patient's offset;
   this is a property of any per-patient shift.
 - **Not implemented:** encryption of intermediate data at rest, envelope keys, quarantine storage

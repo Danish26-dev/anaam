@@ -186,8 +186,11 @@ not just the test suite:
    `check_submission.py`, `validate_output.py`) were removed from `main` in the Release Studio
    merge; `docs/SPEC.md` §8 describes copying them back in locally for self-checking, so this
    does not block using them -- just means they are not committed to the submission repo itself.
-4. Brief PDF (`docs/brief.pdf`) re-rendered with current measured numbers as part of the Release
-   Studio merge.
+4. **Brief PDF (`docs/brief.pdf`) is now stale relative to `docs/BRIEF.md`.** It was last rendered
+   during the Release Studio merge; `docs/BRIEF.md` (the source it's built from) has since been
+   updated twice more in this session with the real A4/A5 numbers from open items 5-7 below. No
+   browser is available in this environment to run `tools/brief/build_brief.py`'s print-to-PDF
+   step. Needs a re-render by whoever has one before the final submission.
 5. ~~Unredacted trailing generic surname in unlabeled names~~ fixed (commit after `4c30a6d`):
    `detect_names`'s bigram rule required every word in a bare two-word name to be individually
    identifying; a generic Indian name-part (Bano, Kaur, Begum, Singh, Devi -- the same list
