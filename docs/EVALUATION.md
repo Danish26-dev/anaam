@@ -132,6 +132,12 @@ none, because `core.header_roles.find_patient_identity_column` does not recognis
 engine's field classifier does: `NAME_PATIENT`, `MRN`). The generator needs patient labels before
 linking on unseen formats can be measured.
 
+Update (commits `880fc5b`, `425e0b9`, re-measured at `4c30a6d`): CSV/TSV identity columns and JSON identity
+keys that the header table does not recognise now fall back to the engine's field classifier. On the same two
+seeds, records carrying a pseudonym are CSV 8/8 and 8/8, TSV 6/8 and 6/8, JSON 12/14 and 12/14, text 24/34 and
+28/38; PII visible and medical values are unchanged (1 of 826; 302 of 302). On the practice data linking is now
+precision 0.97, recall 0.90, F0.5 0.95 (1 wrong merge), and leaks, canaries and medical values are unchanged.
+
 ## 7. Official submission check
 
 `check_submission.py --repo . --run` under WSL Ubuntu (Python 3.12.3, a `python` alias to `python3`

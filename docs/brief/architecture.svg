@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 392" font-family="Segoe UI, Arial, sans-serif">
+  <title>Anaam technical architecture: modules, keys and what touches disk</title>
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#204B42"/>
+    </marker>
+    <style>
+      .bound { fill: #F3F6F4; stroke: #204B42; stroke-width: 2; stroke-dasharray: 7 4; }
+      .core { fill: #fff; stroke: #68756E; stroke-width: 1.3; }
+      .mod { fill: #fff; stroke: #204B42; stroke-width: 1.6; }
+      .disk { fill: #FBF6F1; stroke: #B87552; stroke-width: 1.5; }
+      .mem { fill: #E4EEE9; stroke: #204B42; stroke-width: 1.5; }
+      .dev { fill: #fff; stroke: #8b958f; stroke-width: 1.3; stroke-dasharray: 5 4; }
+      .h { fill: #204B42; font-size: 18.5px; font-weight: 700; }
+      .nm { font-family: Consolas, monospace; font-size: 18.5px; font-weight: 700; fill: #16201d; }
+      .d { fill: #2c3833; font-size: 19px; }
+      .ln { stroke: #204B42; stroke-width: 2; fill: none; }
+    </style>
+  </defs>
+
+  <!-- run boundary -->
+  <rect class="bound" x="1" y="1" width="998" height="292" rx="10"/>
+  <text class="h" x="14" y="26">ONE PROCESS: python main.py · offline (network blocked) · CPU only · Python standard library · no ML models</text>
+
+  <!-- core services -->
+  <g transform="translate(12,38)">
+    <rect class="core" width="235" height="104" rx="7"/>
+    <text class="nm" x="10" y="24">core/preflight</text>
+    <text class="d" x="10" y="49">secret must be present,</text>
+    <text class="d" x="10" y="71">output must be empty,</text>
+    <text class="d" x="10" y="93">input is never modified</text>
+  </g>
+  <g transform="translate(259,38)">
+    <rect class="core" width="235" height="104" rx="7"/>
+    <text class="nm" x="10" y="24">core/network_guard</text>
+    <text class="d" x="10" y="49">socket connect, UDP</text>
+    <text class="d" x="10" y="71">send and DNS lookups</text>
+    <text class="d" x="10" y="93">fail inside the process</text>
+  </g>
+  <g transform="translate(506,38)">
+    <rect class="core" width="235" height="104" rx="7"/>
+    <text class="nm" x="10" y="24">core/keys</text>
+    <text class="d" x="10" y="49">RAKSHA_SECRET → one</text>
+    <text class="d" x="10" y="71">HMAC subkey per use;</text>
+    <text class="d" x="10" y="93">never logged or stored</text>
+  </g>
+  <g transform="translate(753,38)">
+    <rect class="core" width="235" height="104" rx="7"/>
+    <text class="nm" x="10" y="24">core/interfaces</text>
+    <text class="d" x="10" y="49">frozen contracts; one</text>
+    <text class="d" x="10" y="71">TransformPlan per</text>
+    <text class="d" x="10" y="93">record ties all steps</text>
+  </g>
+
+  <!-- data-path modules -->
+  <g transform="translate(12,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/ingest</text>
+    <text class="d" x="9" y="51">decode, sniff</text>
+    <text class="d" x="9" y="74">5 adapters</text>
+    <text class="d" x="9" y="97">fail closed</text>
+  </g>
+  <g transform="translate(177,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/detection</text>
+    <text class="d" x="9" y="51">clinical shield</text>
+    <text class="d" x="9" y="74">names, IDs</text>
+    <text class="d" x="9" y="97">cross-script</text>
+  </g>
+  <g transform="translate(342,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/identity</text>
+    <text class="d" x="9" y="51">blocking</text>
+    <text class="d" x="9" y="74">scoring</text>
+    <text class="d" x="9" y="97">clustering</text>
+  </g>
+  <g transform="translate(507,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/privacy</text>
+    <text class="d" x="9" y="51">pseudonyms</text>
+    <text class="d" x="9" y="74">date shift</text>
+    <text class="d" x="9" y="97">generalise</text>
+  </g>
+  <g transform="translate(672,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/export</text>
+    <text class="d" x="9" y="51">CSV, JSON,</text>
+    <text class="d" x="9" y="74">FHIR, text</text>
+    <text class="d" x="9" y="97">report, manifest</text>
+  </g>
+  <g transform="translate(837,170)">
+    <rect class="mod" width="151" height="108" rx="7"/>
+    <text class="nm" x="9" y="25">src/verify</text>
+    <text class="d" x="9" y="51">release gate:</text>
+    <text class="d" x="9" y="74">leaks, clinical,</text>
+    <text class="d" x="9" y="97">structure</text>
+  </g>
+  <path class="ln" d="M163,224 H175" marker-end="url(#b)"/>
+  <path class="ln" d="M328,224 H340" marker-end="url(#b)"/>
+  <path class="ln" d="M493,224 H505" marker-end="url(#b)"/>
+  <path class="ln" d="M658,224 H670" marker-end="url(#b)"/>
+  <path class="ln" d="M823,224 H835" marker-end="url(#b)"/>
+  <text class="d" x="500" y="160" text-anchor="middle" style="font-size:17px;fill:#68756E">keys feed src/privacy and src/export · contracts are shared by every module</text>
+
+  <!-- what touches disk -->
+  <g transform="translate(0,310)">
+    <rect class="disk" width="232" height="78" rx="7"/>
+    <text class="nm" x="10" y="25">input/</text>
+    <text class="d" x="10" y="49">read-only, hashed,</text>
+    <text class="d" x="10" y="71">never modified</text>
+  </g>
+  <g transform="translate(256,310)">
+    <rect class="mem" width="232" height="78" rx="7"/>
+    <text class="nm" x="10" y="25">in memory</text>
+    <text class="d" x="10" y="49">every candidate file</text>
+    <text class="d" x="10" y="71">until the gate passes</text>
+  </g>
+  <g transform="translate(512,310)">
+    <rect class="disk" width="232" height="78" rx="7"/>
+    <text class="nm" x="10" y="25">staging dir</text>
+    <text class="d" x="10" y="49">written once, then</text>
+    <text class="d" x="10" y="71">one atomic rename</text>
+  </g>
+  <g transform="translate(768,310)">
+    <rect class="disk" width="232" height="78" rx="7"/>
+    <text class="nm" x="10" y="25">output/</text>
+    <text class="d" x="10" y="49">report: hashes and</text>
+    <text class="d" x="10" y="71">counts, no file names</text>
+  </g>
+  <path class="ln" d="M232,349 H254" marker-end="url(#b)"/>
+  <path class="ln" d="M488,349 H510" marker-end="url(#b)"/>
+  <path class="ln" d="M744,349 H766" marker-end="url(#b)"/>
+</svg>
