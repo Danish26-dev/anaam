@@ -75,17 +75,23 @@ before publication, and it is the next step for the JSON shape check.
 
 ## Open points for the team
 
-- **Linking on unseen formats (Omkar):** on the held-out seeds, CSV/TSV records got no pseudonym
-  (0 of 32) because `find_patient_identity_column` did not recognise their identity columns; text and
-  JSON records did get pseudonyms. The engine's field classifier identifies those columns
-  (`NAME_PATIENT`, `MRN`). Proposed tests: a CSV whose identity header is unseen (e.g. `Rogi Naam`,
-  `Bhartee Kramank`) must carry a pseudonym in the identity column, the header row must be unchanged,
-  and two such files sharing a patient must get the same pseudonym. Linking accuracy needs patient
-  labels in the chaos generator (Danish).
-- **A4 profile re-identification at 51%:** not moved by `min_group_size` or age-band width.
-- **Kit scripts are committed on `main`:** `check_dev.py`, `check_submission.py`, `validate_output.py`.
-- **Practice-data values in pipeline files:** docstrings in `src/identity/canonicalize.py` and
-  `src/privacy/generalize.py`, and test values in `tests/test_clustering.py` and
-  `tests/test_json_generalize.py`. The kit's static audit flags hard-coded dev identifiers.
+This list is from the original engine-wiring merge; later status for each is noted below rather
+than rewritten, so this stays a record of what the integration looked like at that point.
+
+- ~~**Linking on unseen formats (Omkar):** on the held-out seeds, CSV/TSV records got no
+  pseudonym~~ fixed: `detection.api.identity_column()` / `identity_key_path()` fall back to the
+  engine's field classifier when the fixed header/key tables find no identity column. Verified
+  0/8 -> 8/8 (CSV) and 0/8 -> 6/8 (TSV) on generated unseen-header samples. See `docs/PROGRESS.md`.
+- ~~**A4 profile re-identification at 51%**~~ re-measured at 0.0% locally: the figure traced almost
+  entirely to local attack-tool measurement bugs (a bare-digit substring match, a missing
+  word-boundary on name matching) plus one real detection gap (an unlabeled two-word name whose
+  second word was a generic Indian name-part, e.g. "Shabana Bano", released half-redacted). All
+  fixed; see `docs/EVALUATION.md` §8. **A5 (targeted attack) is the current largest known gap**:
+  5 of 14 real patients with a known fact (35.7%), concentrated in hospital + rare-condition/
+  stay-length combinations, after separating genuine hits from decoy and wrong-person coincidences
+  the local tool originally counted the same way.
+- ~~**Kit scripts are committed on `main`**~~ removed in the Release Studio merge; kept locally only
+  for self-checking per `docs/SPEC.md` §8, not part of this repository.
+- ~~**Practice-data values in pipeline files**~~ fixed; the audit now reports `identity=0`.
 - **Windows:** `check_submission.py --run` fails when the path has a space; run it under WSL (see
   `docs/EVALUATION.md` section 7). Use `git config core.autocrlf false` in every clone.

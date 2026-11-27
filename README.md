@@ -227,7 +227,7 @@ These pipeline checks were measured before the engine was wired in. With the eng
 
 ## Detection and verification engine
 
-Implemented by Danish in `src/detection/` and `src/verify/`, with 335 tests in `tests/engine/`.
+Implemented by Danish in `src/detection/` and `src/verify/`, with 351 tests in `tests/engine/`.
 `main.py` calls it through `src/detection/api.py` (call order and span policy: `docs/INTERFACE_NOTES.md`).
 
 | Module | What it does |
@@ -247,11 +247,23 @@ Measured through `main.py` with the official `check_dev.py`: 0 of 3,230 PII piec
 Engine tests use pytest (`pip install -r requirements-dev.txt`, then `python -m pytest tests/engine -q`). The pipeline tests above still run with the standard library only.
 
 ## Known limitations
-- Profile re-identification (local A4) is 51% of practice profiles. Raising `min_group_size` to 10 or 20 or widening age bands to 10 years did not change it, so the remaining risk comes from evidence the privacy layer does not yet generalise (likely dates, diagnoses and hospital combined).
-- On unseen formats, CSV/TSV records get no pseudonym when `core.header_roles` does not recognise the patient-identity column (0 of 32 held-out CSV/TSV records; text and JSON records were pseudonymised). Linking accuracy on unseen formats is not measured yet, because the chaos generator writes no patient labels.
+- **Targeted attack (local A5): 5 of 14 real patients with a known fact (35.7%)** are genuinely
+  re-identified once decoy and wrong-person coincidences are excluded from the raw local figure.
+  Concentrated in hospital name + a rare condition (shared by 1 of 122 profiles) or an exact stay
+  length; the hospital name is kept intentionally as clinical, non-identifying data. A blanket
+  rare-diagnosis-suppression attempt was built, tested and reverted after it damaged a non-patient
+  reference document with no measured benefit (`docs/PROGRESS.md`). This is now the largest known
+  privacy gap; local A4 profile re-identification is 0.0% (was 51%: traced mostly to local
+  attack-tool bugs and one real bigram-name detection gap, both fixed -- `docs/EVALUATION.md` §8).
+- On unseen formats, CSV/TSV identity columns fall back to the engine's field classifier when
+  `core.header_roles`'s fixed header table does not recognise the column (verified 0/8 -> 8/8 CSV,
+  0/8 -> 6/8 TSV on generated unseen-header samples). Linking accuracy on the sealed chaos seeds is
+  still not measured, because that generator writes no patient labels.
 - Record-level rare-condition suppression depends on clinical risk flags from Danish's side and is not implemented.
 - Multi-patient FHIR Bundles are quarantined rather than partitioned.
-- FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource type) are not passed through O10's age/village/PIN generalization; only CSV and JSON records are.
+- FHIR resources other than `Patient` (e.g. a diagnosis/age-equivalent value on another resource
+  type) are not passed through O10's structured village/PIN generalization. FHIR narrative text
+  ages are banded (fixed alongside free-text documents, see `docs/EVALUATION.md` §8).
 - `report.json` shows `peak_rss_mb: 0.0` on Windows (no `resource` module); on Linux it is measured (47 MB on the practice data).
 
 ## Release Studio (demo frontend)

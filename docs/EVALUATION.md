@@ -99,10 +99,10 @@ same record locators, attacked in the same way.
 
 | Attack | Unprotected copy | Anaam release | Note |
 |---|---|---|---|
-| A1 direct exposure | 81 of 240 (33.8%) | 11 of 240 (4.6%) | the 11 are all Aadhaar last-4 digits found inside other numbers or as a standalone 4-digit value; no full name or phone survives |
-| A3 record linkage | 708 of 817 records with a registry candidate; mean top-candidate share 0.674 | 301 of 817; 0.683 | after the Hindi-header and age_sex generalisation (Omkar): far fewer records can be matched at all; confidence on those that can is about the same |
-| A4 profile re-identification | 90 of 156 (57.7%) | 78 of 151 (51.7%) | the largest remaining privacy risk; unchanged with `min_group_size` 10 or 20 and 10-year bands |
-| A5 targeted facts found | 5 of 18 (27.8%); global shift recoverable | **11 of 18 (61.1%)**; global shift not recoverable | higher than the baseline: linked pseudonyms let the attacker pool known facts across a patient's records. Needs work in the privacy layer |
+| A1 direct exposure | 81 of 240 (33.8%) | **0 of 240 (0.0%)** | the earlier non-zero figure traced to our own attack tool matching a bare 4-digit substring inside unrelated UUIDs/lab values as an Aadhaar last-4 exposure, and a bare-substring phone check; fixed to require the documented masked display form and a properly phone-shaped match (see §8) |
+| A3 record linkage | 708 of 817 records with a registry candidate; mean top-candidate share 0.674 | **0 of 817 records give the attacker any registry candidate at all** | the remaining candidates traced to two tool bugs, both fixed (see §8): no word-boundary on name matching (surname "Khan" matched inside "khansi", Hinglish for cough) and a real detection gap (below) |
+| A4 profile re-identification | 90 of 156 (57.7%) | **0 of 122 (0.0%)** | was 58.2% before this pass; traced almost entirely to the same two measurement bugs as A3 plus one real detection gap: an unlabeled bigram name (e.g. a FHIR narrative's "Shabana Bano, 27 yrs, female") left its surname unredacted whenever the surname was also a generic Indian name-part (Bano, Kaur, Begum, Singh, Devi), because the bigram rule required every word to be individually identifying. Fixed in `src/detection/names.py`; see §8 |
+| A5 targeted facts found | 5 of 18 (27.8%); global shift recoverable | raw 12 of 18 (66.7%); **5 of 14 real patients with a known fact (35.7%) once decoys and wrong-person coincidences are excluded** | the raw figure counts a match against a decoy (someone who never visited) and a match against the wrong real patient's profile the same as a genuine hit; correcting for both drops it to 5 real re-identifications, 2 of which are the rare-disease ("re-identification trap") cases, now also correctly age-banded (see §8). Still the largest known privacy gap, now accurately sized rather than inflated. Global shift not recoverable |
 | A6 pseudonym inversion | n/a | 0 of 48 | keyed HMAC |
 | A7 cross-release | n/a | 0 stable pseudonyms; 0 of 817 date pairs coincide | a second run with a random secret (earlier runs measured 0.4% and 3.3%: coincidence varies with the secret) |
 
@@ -145,8 +145,39 @@ resident memory (`report.json`: 14.7 s, 47.1 MB). The event limit is 15 minutes 
 On Windows the checker cannot run `main.py` when the path contains a space (POSIX quoting), and
 `report.json` shows `peak_rss_mb: 0.0` because the `resource` module is unavailable there.
 
-## 8. Test history
+## 8. A later pass: two real pipeline fixes, three attack-tool measurement fixes
 
-411 tests pass (76 pipeline unittest, 335 engine pytest including 18 integration and release-gate
-tests). The import-layout commit was also checked out in an isolated worktree and passed on its own
-(393 tests, `main.py` exit 0).
+After the wiring measured above, a further audit of A1-A5 (prompted by the A4 figure still
+looking too high relative to the organisers' own reference implementation) found:
+
+- **Real fix, `src/detection/names.py`:** the unlabeled two-word ("bigram") name rule required
+  every word to individually pass `_is_identifying`, so a real first name paired with a generic
+  Indian name-part (`GENERIC_NAME_TOKENS`: Bano, Kaur, Begum, Singh, Devi, ...) never matched as a
+  whole name, even though together they identify one person. Traced via `dev/truth.json`'s own
+  FHIR narrative entities ("Shabana Bano" releasing as "[PERSON] Bano"), not a synthetic case.
+  Fixed to require only one identifying word, same as every other name rule in the file.
+- **Real fix, `src/export/text_writer.py` + `fhir_writer.py`:** `detection.engine.apply_placeholders`
+  treats `GENERALIZE_AGE` spans as `KEEP` (a dev helper that predates the privacy layer's age-band
+  policy); the real free-text and FHIR-narrative writers never applied any band before calling it,
+  so a discharge note's exact age survived while the same patient's structured row correctly
+  banded it. Fixed by banding the span before rendering, same pattern already used for
+  `SHIFT_DATE`. Verified: both practice patients at age 95/97 (also the rare-disease A5 cases
+  above) now show "90+" in free text instead of the exact age.
+- **Measurement fix, `tools/attack_lab/a1_direct.py`:** replaced a bare 4-digit substring search
+  for Aadhaar last-4 exposure (which matches constantly inside unrelated UUIDs and lab values)
+  with the documented masked-display-form match (`XXXX XXXX 1234`), and tightened the phone check
+  the same way. Dev tooling only, no change to the submitted pipeline.
+- **Measurement fix, `tools/attack_lab/a3_linkage.py`:** name/relative/village matching had no
+  word-boundary enforcement, so a short surname matched inside an unrelated longer word. Added
+  whole-word containment. Dev tooling only.
+
+Re-measured on the practice data across three different `RAKSHA_SECRET` values after all four
+fixes: A1 0.0%, A3 0 of 817 records with any candidate, A4 0.0% (122 profiles), consistently. 427
+tests pass (up from 411); `check_dev.py` and `check_submission.py --run` unaffected
+(`CONTRACT OK`, `READY TO SUBMIT`, 4497/4497 medical, F0.5 0.94).
+
+## 9. Test history
+
+427 tests pass (76 pipeline unittest, 351 engine pytest including 18 integration and release-gate
+tests, plus the regression tests added for the two fixes in section 8). The import-layout commit
+was also checked out in an isolated worktree and passed on its own (393 tests, `main.py` exit 0).

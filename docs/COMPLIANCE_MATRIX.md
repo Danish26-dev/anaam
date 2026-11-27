@@ -47,10 +47,11 @@ says otherwise (`docs/EVALUATION.md`). Nothing here is a claim about the hidden 
 
 | Requirement | Where | Evidence | Status |
 |---|---|---|---|
-| Per-patient date shifts, age bands, location and PIN generalisation | pipeline `src/privacy/*` | A5 global shift not recoverable; A7 0 stable pseudonyms, 3.3% coincident dates | DONE |
-| Profile re-identification | pipeline privacy layer | local A4: 51.0% of profiles | **PARTIAL**: highest remaining risk |
-| Rare-condition handling | needs clinical risk flags | | NOT DONE |
-| Local attacks A1, A3, A4, A5, A6, A7 | pipeline `tools/attack_lab/*` | re-run on the wired release (EVALUATION section 5) | DONE (measured) |
+| Per-patient date shifts, age bands, location and PIN generalisation | pipeline `src/privacy/*`, `src/export/text_writer.py` | A5 global shift not recoverable; A7 0 stable pseudonyms; ages now also banded in free text and FHIR narratives, not just CSV/JSON (`docs/EVALUATION.md` §8) | DONE |
+| Profile re-identification | pipeline privacy layer | local A4: 0.0% of profiles (was 58.2%; traced to local attack-tool measurement bugs and one real bigram-name detection gap, both fixed -- `docs/EVALUATION.md` §8) | DONE |
+| Targeted attack (known facts) | pipeline privacy layer | local A5: 5 of 14 real patients with a known fact (35.7%), after excluding decoys and wrong-person coincidences the attack tool previously counted as hits | **PARTIAL**: largest remaining risk, hospital name + rare condition/stay length |
+| Rare-condition handling | needs clinical risk flags | an earlier blanket rare-diagnosis-suppression attempt was built, tested and reverted (real false positives, no measured benefit); not re-attempted | NOT DONE |
+| Local attacks A1, A3, A4, A5, A6, A7 | pipeline `tools/attack_lab/*` | re-run on the wired release (`docs/EVALUATION.md` §5, §8) | DONE (measured) |
 
 ## F. Output quality and validity (10 points)
 
