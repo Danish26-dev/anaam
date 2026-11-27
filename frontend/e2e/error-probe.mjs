@@ -2,8 +2,9 @@
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] ?? "http://127.0.0.1:8765";
-const routes = process.argv.slice(3).length ? process.argv.slice(3) : ["/", "/studio", "/studio/new", "/studio/inventory",
-  "/studio/clinical", "/studio/identity", "/studio/attacks", "/studio/assurance"];
+// routes are separate arguments: node e2e/error-probe.mjs <base> /workspace /intake ...
+const routes = process.argv.slice(3).length ? process.argv.slice(3) : ["/", "/workspace", "/intake", "/identity",
+  "/protection", "/clinical-integrity", "/risk", "/assurance"];
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const seen = new Map();

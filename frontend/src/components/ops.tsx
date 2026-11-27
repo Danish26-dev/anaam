@@ -57,11 +57,17 @@ export function Dialog({ open, title, onClose, children }: { open: boolean; titl
 export function ReviewDialog({ action, open, onClose, onConfirm }: {
   action: ActionItem | null; open: boolean; onClose: () => void; onConfirm: (note: string) => void;
 }) {
-  const [note, setNote] = useState("");
-  useEffect(() => { if (open) setNote(""); }, [open]);
   return (
     <Dialog open={open && !!action} title="Record your review" onClose={onClose}>
-      {action && (
+      {/* The form mounts with each opening, so every review starts empty (no reset effect racing the user's typing). */}
+      {action && <ReviewForm action={action} onClose={onClose} onConfirm={onConfirm} />}
+    </Dialog>
+  );
+}
+
+function ReviewForm({ action, onClose, onConfirm }: { action: ActionItem; onClose: () => void; onConfirm: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  return (
         <form onSubmit={(e) => { e.preventDefault(); if (note.trim()) onConfirm(note.trim()); }}>
           <p className="muted" style={{ marginBottom: 12 }}><strong style={{ color: "var(--ink)" }}>{action.title}.</strong> {action.impact}</p>
           <label htmlFor="review-note" className="field-label">What did you check, and what did you decide?</label>
@@ -75,8 +81,6 @@ export function ReviewDialog({ action, open, onClose, onConfirm }: {
             <button type="submit" className="btn btn-primary btn-sm" disabled={!note.trim()}>Record review</button>
           </div>
         </form>
-      )}
-    </Dialog>
   );
 }
 
