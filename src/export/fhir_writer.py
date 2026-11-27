@@ -138,7 +138,8 @@ _STRUCTURAL_KEYS = {"reference", "fullUrl", "id", "resourceType", "system", "url
 
 
 def _clean_strings(
-    node: object, pointer: str, record_id: str | None, skip: set[str], counter: list[int]
+    node: object, pointer: str, record_id: str | None, skip: set[str], counter: list[int],
+    age_band_years: int = 5,
 ) -> object:
     """Run every non-structural string through the detection seam (with record context)."""
     if isinstance(node, dict):
@@ -146,15 +147,15 @@ def _clean_strings(
             child = f"{pointer}/{str(key).replace('~', '~0').replace('/', '~1')}"
             if key in _STRUCTURAL_KEYS or child in skip:
                 continue
-            node[key] = _clean_strings(node[key], child, record_id, skip, counter)
+            node[key] = _clean_strings(node[key], child, record_id, skip, counter, age_band_years)
         return node
     if isinstance(node, list):
         return [
-            _clean_strings(item, f"{pointer}/{i}", record_id, skip, counter)
+            _clean_strings(item, f"{pointer}/{i}", record_id, skip, counter, age_band_years)
             for i, item in enumerate(node)
         ]
     if isinstance(node, str):
-        cleaned, count = render_text(node, 0, record_id, pointer)
+        cleaned, count = render_text(node, 0, record_id, pointer, age_band_years)
         counter[0] += count
         return cleaned
     return node
@@ -162,7 +163,7 @@ def _clean_strings(
 
 def render_fhir_bundle(
     bundle: dict, index: FhirPatientIndex, pseudonym: str | None, date_offset_days: int = 0,
-    record_id: str | None = None,
+    record_id: str | None = None, age_band_years: int = 5,
 ) -> tuple[str, int]:
     doc = copy.deepcopy(bundle)
     redacted = 0
@@ -209,13 +210,16 @@ def render_fhir_bundle(
         if isinstance(narrative, str):
             # Narrative is free-text prose (e.g. a rendered discharge paragraph), so an
             # inline date mention is shifted the same way whole free-text documents are.
-            cleaned, count = render_text(narrative, date_offset_days, record_id, pointer if record_id else None)
+            cleaned, count = render_text(
+                narrative, date_offset_days, record_id, pointer if record_id else None,
+                age_band_years,
+            )
             if _set_at_pointer(doc, pointer, cleaned):
                 redacted += count
 
     if record_id is not None:
         counter = [0]
-        _clean_strings(doc, "", record_id, set(index.narrative_pointers), counter)
+        _clean_strings(doc, "", record_id, set(index.narrative_pointers), counter, age_band_years)
         redacted += counter[0]
 
     if date_offset_days:

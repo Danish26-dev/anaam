@@ -698,7 +698,8 @@ def main() -> int:
                 plan = transform_plans[record_id]
                 pid = plan.pseudonym
                 text_out, n = render_fhir_bundle(
-                    data, idx, pid, date_offset_days=plan.date_offset_days, record_id=record_id
+                    data, idx, pid, date_offset_days=plan.date_offset_days, record_id=record_id,
+                    age_band_years=age_band_years,
                 )
                 candidates.append(text_candidate(out_rel, text_out, "fhir"))
                 identifiers_detected += n
@@ -712,7 +713,7 @@ def main() -> int:
                 document_pseudonym = plan.pseudonym
                 text_out, n = render_text_document(
                     item["text"], document_pseudonym,
-                    plan.date_offset_days, doc_record_id,
+                    plan.date_offset_days, doc_record_id, age_band_years,
                 )
                 candidates.append(text_candidate(out_rel, text_out, "text"))
                 identifiers_detected += n

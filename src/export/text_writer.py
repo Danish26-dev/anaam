@@ -5,9 +5,10 @@ import dataclasses
 import datetime as dt
 import re
 
-from core.interfaces import REENCODE, SHIFT_DATE, ResolvedSpan
+from core.interfaces import GENERALIZE_AGE, REENCODE, SHIFT_DATE, ResolvedSpan
 from detection.api import apply_spans, field_spans, resolve_spans
 from privacy.date_shift import shift_date, shift_date_string
+from privacy.generalize import age_band
 
 # Conservative free-text date patterns (O9): strict DD/MM/YY or DD/MM/YYYY and ISO
 # dates. Slash dates follow this dataset's documented DMY convention. Deliberately does NOT try to shift every digit
@@ -86,11 +87,40 @@ def _shifted_date_span(text: str, span: ResolvedSpan, offset_days: int) -> Resol
     return span
 
 
+def _banded_age_span(span: ResolvedSpan, age_band_years: int) -> ResolvedSpan:
+    """GENERALIZE_AGE span -> a replacement span holding the banded age, the free-text
+    counterpart of apply_generalization.generalize_field_value's structured-field age
+    banding.
+
+    detection.engine.apply_placeholders treats GENERALIZE_AGE the same as KEEP (its own
+    docstring: "dates and ages are kept"), by design for the dev helper it originally
+    was -- but render_text is the real submission's free-text writer, and that path
+    never applied O10's age policy at all, so a discharge note like "आयु: 97 वर्ष"
+    released the exact age while the same patient's CSV/JSON rows correctly got a
+    band. Only the matched digits are replaced (the span never includes the unit word
+    that follows, e.g. "वर्ष"/"yrs"), so "97 वर्ष" becomes "90+ वर्ष".
+    """
+    if span.action != GENERALIZE_AGE:
+        return span
+    true_age = span.attrs.get("age") if span.attrs else None
+    if true_age is None:
+        return span
+    try:
+        banded = age_band(int(true_age), band_years=age_band_years)
+    except ValueError:
+        return span
+    return dataclasses.replace(span, action=REENCODE, replacement=banded)
+
+
+_DEFAULT_AGE_BAND_YEARS = 5  # config/policy.yaml's own default; callers normally pass theirs
+
+
 def render_text(
     text: str,
     date_offset_days: int = 0,
     record_id: str | None = None,
     field_path: str | None = None,
+    age_band_years: int = _DEFAULT_AGE_BAND_YEARS,
 ) -> tuple[str, int]:
     """Sanitize one value. With `record_id` and `field_path`, the engine's per-field spans
     (computed on the original value, with field classification) are applied first and dates
@@ -100,9 +130,11 @@ def render_text(
         # The engine found the dates, so they are shifted through its spans; running the
         # regex pass afterwards would shift a slash date twice.
         spans = [_shifted_date_span(text, s, date_offset_days) for s in spans]
+        spans = [_banded_age_span(s, age_band_years) for s in spans]
         return apply_spans(text, spans)
     shifted_text, _ = _shift_free_text_dates(text, date_offset_days)
     spans = resolve_spans(shifted_text)
+    spans = [_banded_age_span(s, age_band_years) for s in spans]
     return apply_spans(shifted_text, spans)
 
 
@@ -113,7 +145,7 @@ _PATIENT_LABEL_RE = re.compile(
 
 def render_text_document(
     text: str, pseudonym: str | None, date_offset_days: int = 0,
-    record_id: str | None = None,
+    record_id: str | None = None, age_band_years: int = _DEFAULT_AGE_BAND_YEARS,
 ) -> tuple[str, int]:
     """Render a document and embed any claimed pseudonym in an identity location.
 
@@ -121,7 +153,9 @@ def render_text_document(
     label, a safe `Patient:` header is prepended so records.jsonl never claims a pseudonym
     that is absent from the released record.
     """
-    rendered, count = render_text(text, date_offset_days, record_id, "" if record_id else None)
+    rendered, count = render_text(
+        text, date_offset_days, record_id, "" if record_id else None, age_band_years
+    )
     if pseudonym is None:
         return rendered, count
     rendered, replacements = _PATIENT_LABEL_RE.subn(
